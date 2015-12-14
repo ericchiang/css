@@ -189,9 +189,34 @@ func (neg negation) matches(n *html.Node) bool {
 	return !neg.m.matches(n)
 }
 
-type firstOfType struct{}
+type matcherFunc func(n *html.Node) bool
 
-func (m firstOfType) matches(n *html.Node) bool {
+func (f matcherFunc) matches(n *html.Node) bool {
+	return f(n)
+}
+
+func empty(n *html.Node) bool {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type != html.CommentNode {
+			return false
+		}
+	}
+	return true
+}
+
+func firstChild(n *html.Node) bool {
+	if n.Type != html.ElementNode {
+		return false
+	}
+	for s := n.PrevSibling; s != nil; s = s.PrevSibling {
+		if s.Type == html.ElementNode {
+			return false
+		}
+	}
+	return true
+}
+
+func firstOfType(n *html.Node) bool {
 	if n.Type != html.ElementNode {
 		return false
 	}
@@ -201,4 +226,40 @@ func (m firstOfType) matches(n *html.Node) bool {
 		}
 	}
 	return true
+}
+
+func lastChild(n *html.Node) bool {
+	if n.Type != html.ElementNode {
+		return false
+	}
+	for s := n.NextSibling; s != nil; s = s.NextSibling {
+		if s.Type == html.ElementNode {
+			return false
+		}
+	}
+	return true
+}
+
+func lastOfType(n *html.Node) bool {
+	if n.Type != html.ElementNode {
+		return false
+	}
+	for s := n.NextSibling; s != nil; s = s.NextSibling {
+		if s.Type == html.ElementNode && s.Data == n.Data {
+			return false
+		}
+	}
+	return true
+}
+
+func onlyChild(n *html.Node) bool {
+	return firstChild(n) && lastChild(n)
+}
+
+func onlyOfType(n *html.Node) bool {
+	return firstOfType(n) && lastOfType(n)
+}
+
+func root(n *html.Node) bool {
+	return n.Parent == nil
 }

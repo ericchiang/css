@@ -123,6 +123,27 @@ func TestMatcher(t *testing.T) {
 			[]string{`<foobar></foobar>`},
 			[]matcher{typeSelector{"foobar"}},
 		},
+		{
+			`<p><a id="foo"></a><a></a></p>`,
+			[]string{`<a id="foo"></a>`},
+			[]matcher{
+				typeSelector{"a"},
+				matcherFunc(firstChild),
+			},
+		},
+		{
+			`<div class="box"><!-- I will be selected --></div>
+			<div class="box">I will be not be selected</div>
+			<div class="box">
+			    <!-- I will not be selected because of the whitespace around this comment -->
+			</div>
+			`,
+			[]string{`<div class="box"><!-- I will be selected --></div>`},
+			[]matcher{
+				attrMatcher{"class", "box"},
+				matcherFunc(empty),
+			},
+		},
 	}
 
 	for i, tt := range tests {

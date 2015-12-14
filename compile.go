@@ -164,6 +164,12 @@ func (c *compiler) compileSimpleSelectorSeq() (selectorSequence, error) {
 				return selectorSequence{}, err
 			}
 			matchers = append(matchers, attrMatcher)
+		case typeColon:
+			m, err := c.compilePseudo()
+			if err != nil {
+				return selectorSequence{}, err
+			}
+			matchers = append(matchers, m)
 		default:
 			if firstLoop {
 				return selectorSequence{}, syntaxError(t, typeIdent, typeDot, typeHash)
@@ -230,5 +236,46 @@ func (c *compiler) compileAttr() (matcher, error) {
 		return attrCompMatcher{key, val, suffixMatcher}, nil
 	default:
 		return attrMatcher{key, val}, nil
+	}
+}
+
+func (c *compiler) compilePseudo() (matcher, error) {
+	if tok := c.next(); tok.typ != typeColon {
+		return nil, syntaxError(tok, typeColon)
+	}
+	doubleColon := c.peek().typ == typeColon
+	if doubleColon {
+		c.next()
+	}
+	switch t := c.next(); t.typ {
+	case typeIdent:
+		if doubleColon {
+		} else {
+			switch t.val {
+			case "empty":
+				return matcherFunc(empty), nil
+			case "first-child":
+				return matcherFunc(firstChild), nil
+			case "first-of-type":
+				return matcherFunc(firstOfType), nil
+			case "last-child":
+				return matcherFunc(lastChild), nil
+			case "last-of-type":
+				return matcherFunc(lastOfType), nil
+			case "only-child":
+				return matcherFunc(onlyChild), nil
+			case "only-of-type":
+				return matcherFunc(onlyOfType), nil
+			case "root":
+				return matcherFunc(root), nil
+			}
+		}
+		s := ":"
+		if doubleColon {
+			s = "::"
+		}
+		return nil, &SyntaxError{"unknown pseudo: " + strconv.Quote(s+t.val), t.start}
+	default:
+		return nil, syntaxError(t, typeIdent, typeFunc)
 	}
 }
