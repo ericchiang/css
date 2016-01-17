@@ -130,6 +130,9 @@ func TestCompileSelector(t *testing.T) {
 			t.Errorf("case=%d: compilation failed %v", i, compErr(tt.expr, err))
 			continue
 		}
+		if c.peek().typ != typeEOF {
+			t.Errorf("case=%d: did not parse entire input", i)
+		}
 		runTest(t, i, tt.in, sel, tt.want)
 	}
 }
@@ -175,6 +178,11 @@ func TestCompileSimpleSelectorSeq(t *testing.T) {
 			"p:empty",
 			[]string{},
 		},
+		{
+			`<p><a id="1"></a><a id="2"></a><a id="3"></a><a id="4"></a></p>`,
+			"a:nth-child(odd)",
+			[]string{`<a id="1"></a>`, `<a id="3"></a>`},
+		},
 	}
 	for i, tt := range tests {
 		l, err := newLexer(tt.expr)
@@ -188,6 +196,9 @@ func TestCompileSimpleSelectorSeq(t *testing.T) {
 		if err != nil {
 			t.Errorf("case=%d: compilation failed %v", err)
 			continue
+		}
+		if c.peek().typ != typeEOF {
+			t.Errorf("case=%d: did not parse entire input", i)
 		}
 		runTest(t, i, tt.in, sel, tt.want)
 	}
@@ -247,11 +258,75 @@ func TestCompileAttr(t *testing.T) {
 			continue
 		}
 		go l.run()
-		m, err := newCompiler(l).compileAttr()
+		c := newCompiler(l)
+		m, err := c.compileAttr()
 		if err != nil {
 			t.Errorf("case=%d: compilation failed %v", err)
 			continue
 		}
+		if c.peek().typ != typeEOF {
+			t.Errorf("case=%d: did not parse entire input", i)
+		}
 		runTest(t, i, tt.in, selectorSequence{[]matcher{m}}, tt.want)
+	}
+}
+
+func TestParthNthArgs(t *testing.T) {
+	tests := []struct {
+		expr string
+		a, b int
+	}{
+		{"even", 2, 0},
+		{"odd", 2, 1},
+		{"2n+1", 2, 1},
+		{"2n", 2, 0},
+		{"+2n", 2, 0},
+		{"-2n", -2, 0},
+		{"4", 0, 4},
+		{"4n - 3", 4, -3},
+	}
+	for _, tt := range tests {
+		l, err := newLexer(tt.expr)
+		if err != nil {
+			t.Errorf("case=%d: could not create lexer %v", err)
+			continue
+		}
+		go l.run()
+		c := newCompiler(l)
+		a, b, err := c.parseNthArgs()
+		if err != nil {
+			t.Errorf("case='%s': parse failed %v", tt.expr, err)
+			continue
+		}
+		if c.peek().typ != typeEOF {
+			t.Errorf("case='%s': did not parse entire input", tt.expr)
+		}
+		if tt.a != a || tt.b != b {
+			t.Errorf("case='%s': want=(a=%d, b=%d), got=(a=%d, b=%d)", tt.expr, tt.a, tt.b, a, b)
+		}
+	}
+}
+
+func TestParseNth(t *testing.T) {
+	tests := []struct {
+		in   string
+		want int
+		ok   bool
+	}{
+		{"9n", 9, true},
+		{"91n3n", 0, false},
+	}
+
+	for i, tt := range tests {
+		got, err := parseNth(tt.in)
+		if err == nil && !tt.ok {
+			t.Errorf("case=%d: was incorrectly able to parse %s", i, strconv.Quote(tt.in))
+		} else if err != nil && tt.ok {
+			t.Errorf("case=%d: failed to parse %s", i, strconv.Quote(tt.in))
+		} else if tt.ok {
+			if tt.want != got {
+				t.Errorf("case=%d: want=%d, got=%d", i, tt.want, got)
+			}
+		}
 	}
 }

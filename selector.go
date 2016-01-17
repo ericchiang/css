@@ -189,6 +189,7 @@ func (neg negation) matches(n *html.Node) bool {
 	return !neg.m.matches(n)
 }
 
+// matcherFunc for pseudo classes
 type matcherFunc func(n *html.Node) bool
 
 func (f matcherFunc) matches(n *html.Node) bool {
@@ -262,4 +263,23 @@ func onlyOfType(n *html.Node) bool {
 
 func root(n *html.Node) bool {
 	return n.Parent == nil
+}
+
+type nthChild struct {
+	a, b int
+}
+
+func (nth nthChild) matches(n *html.Node) bool {
+	pos := 0
+	for s := n.PrevSibling; s != nil; s = s.PrevSibling {
+		if s.Type == html.ElementNode {
+			pos++
+		}
+	}
+	return posMatches(nth.a, nth.b, pos)
+}
+
+func posMatches(a, b, pos int) bool {
+	n := (pos - b + 1)
+	return (a == 0 && n == 0) || (n%a == 0 && n/a >= 0)
 }

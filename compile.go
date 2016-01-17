@@ -1,6 +1,7 @@
 package css
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -81,10 +82,11 @@ func (c *compiler) next() token {
 	return tok
 }
 
-func (c *compiler) skipSpace() {
+func (c *compiler) skipSpace() token {
 	for c.peek().typ == typeSpace {
 		c.next()
 	}
+	return c.peek()
 }
 
 func (c *compiler) compileSelectorsGroup() ([]selector, error) {
@@ -129,9 +131,7 @@ func (c *compiler) compileSelector() (selector, error) {
 		default:
 			return sel, nil
 		}
-		for c.peek().typ == typeSpace {
-			c.next()
-		}
+		c.skipSpace()
 	}
 }
 
@@ -275,7 +275,123 @@ func (c *compiler) compilePseudo() (matcher, error) {
 			s = "::"
 		}
 		return nil, &SyntaxError{"unknown pseudo: " + strconv.Quote(s+t.val), t.start}
+
+	case typeFunc:
+		var m matcher
+		var err error
+		if doubleColon {
+			err = &SyntaxError{"unknown pseudo: ::" + strconv.Quote(t.val), t.start}
+		} else {
+			var a, b int
+			switch t.val {
+			case "nth-child(":
+				a, b, err = c.parseNthArgs()
+				m = nthChild{a, b}
+			default:
+				err = &SyntaxError{"unknown pseudo: :" + strconv.Quote(t.val), t.start}
+			}
+		}
+		if err == nil && c.peek().typ != typeRightParen {
+			err = syntaxError(c.next(), typeRightParen)
+		}
+		c.next()
+		return m, err
 	default:
 		return nil, syntaxError(t, typeIdent, typeFunc)
 	}
+}
+
+/*
+  : [ 'even' | 'odd' ]
+  | [ '-' | PLUS ]? DIMENSION
+  | [ '-' | PLUS ]? DIMENSION [ '-' | PLUS ] NUMBER
+  [ [ '-' | PLUS ]? NUMBER
+*/
+
+func (c *compiler) parseNthArgs() (a, b int, err error) {
+	minus := false
+	c.skipSpace()
+	switch t := c.peek(); t.typ {
+	case typeIdent:
+		c.next()
+		switch t.val {
+		case "even":
+			return 2, 0, nil
+		case "odd":
+			return 2, 1, nil
+		}
+	case typeNum:
+		c.next()
+		if b, err = strconv.Atoi(t.val); err != nil {
+			err = &SyntaxError{err.Error(), t.start}
+		}
+		return
+	case typeSub:
+		c.next()
+		minus = true
+	case typePlus:
+		c.next()
+	case typeDimension:
+	default:
+		return 0, 0, syntaxError(t, typeIdent, typeNum, typeSub, typePlus)
+	}
+
+	c.skipSpace()
+	switch t := c.next(); t.typ {
+	case typeDimension:
+		if a, err = parseNth(t.val); err != nil {
+			return 0, 0, &SyntaxError{err.Error(), t.start}
+		}
+		if minus {
+			a = 0 - a
+		}
+	case typeNum:
+		if b, err = strconv.Atoi(t.val); err != nil {
+			return 0, 0, &SyntaxError{err.Error(), t.start}
+		}
+		if minus {
+			b = 0 - b
+		}
+		c.skipSpace()
+		return
+	default:
+		return 0, 0, syntaxError(t, typeIdent, typeNum, typeSub, typePlus)
+	}
+
+	c.skipSpace()
+	switch c.peek().typ {
+	case typeSub:
+		minus = true
+	case typePlus:
+		minus = false
+	default:
+		return
+	}
+	c.next()
+	c.skipSpace()
+	t := c.next()
+	if t.typ != typeNum {
+		return 0, 0, syntaxError(t, typeIdent, typeNum, typeSub, typePlus)
+	}
+	if b, err = strconv.Atoi(t.val); err != nil {
+		return 0, 0, &SyntaxError{err.Error(), t.start}
+	}
+	if minus {
+		b = 0 - b
+	}
+	c.skipSpace()
+	return
+}
+
+var parseNthErr = errors.New("string is not of form {number}n")
+
+func parseNth(s string) (int, error) {
+	if s == "" || s[len(s)-1] != 'n' {
+		return 0, parseNthErr
+	}
+	n, err := strconv.Atoi(s[:len(s)-1])
+	if err != nil {
+		return 0, parseNthErr
+	}
+	return n, nil
 }

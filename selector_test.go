@@ -150,3 +150,23 @@ func TestMatcher(t *testing.T) {
 		runTest(t, i, tt.in, selectorSequence{tt.m}, tt.want)
 	}
 }
+
+func TestPosMatches(t *testing.T) {
+	tests := []struct {
+		a, b, pos int
+		want      bool
+	}{
+		{2, 4, 3, true},
+		{2, 4, 5, true},
+		{2, 4, 13, true},
+		{-2, 7, 0, true},
+		{-2, 7, 6, true},
+		{-2, 7, 7, false},
+		{0, 7, 6, true},
+	}
+	for i, tt := range tests {
+		if got := posMatches(tt.a, tt.b, tt.pos); got != tt.want {
+			t.Errorf("case=%d (a=%d, b=%d, pos=%d): want=%t, got=%t", i, tt.a, tt.b, tt.pos, tt.want, got)
+		}
+	}
+}
