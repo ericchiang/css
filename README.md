@@ -38,6 +38,11 @@ func main() {
 }
 ```
 
+```
+$ go run example/css.go
+<h2 id="foo">a header</h2>
+```
+
 ## Details
 
 This package implements the W3 [_Selectors Level 3_](http://www.w3.org/TR/css3-selectors/) specification. The exact grammar can be found in the `grammar.txt` file.
