@@ -279,6 +279,7 @@ func TestParthNthArgs(t *testing.T) {
 		{"even", 2, 0},
 		{"odd", 2, 1},
 		{"2n+1", 2, 1},
+		{"-2n-1", -2, -1},
 		{"2n", 2, 0},
 		{"+2n", 2, 0},
 		{"-2n", -2, 0},
@@ -309,24 +310,79 @@ func TestParthNthArgs(t *testing.T) {
 
 func TestParseNth(t *testing.T) {
 	tests := []struct {
-		in   string
-		want int
-		ok   bool
+		in     string
+		a, b   int
+		bFound bool
+		ok     bool
 	}{
-		{"9n", 9, true},
-		{"91n3n", 0, false},
+		{"9n", 9, 0, false, true},
+		{"-2n+2", -2, 2, true, true},
+		{"91n3n", 0, 0, false, false},
 	}
 
-	for i, tt := range tests {
-		got, err := parseNth(tt.in)
-		if err == nil && !tt.ok {
-			t.Errorf("case=%d: was incorrectly able to parse %s", i, strconv.Quote(tt.in))
-		} else if err != nil && tt.ok {
-			t.Errorf("case=%d: failed to parse %s", i, strconv.Quote(tt.in))
-		} else if tt.ok {
-			if tt.want != got {
-				t.Errorf("case=%d: want=%d, got=%d", i, tt.want, got)
+	for _, tt := range tests {
+		a, b, bFound, err := parseNth(tt.in)
+		if err != nil {
+			if tt.ok {
+				t.Errorf("case=%q: failed to parse", tt.in)
 			}
+			continue
+		}
+		if !tt.ok {
+			t.Errorf("case=%q: expected parsing error", tt.in)
+			continue
+		}
+		if a != tt.a {
+			t.Errorf("case=%q: want (a=%d), got (a=%d)", tt.in, tt.a, a)
+		}
+		if bFound != tt.bFound {
+			t.Errorf("case=%q: want (bFound=%t), got (bFound=%t)", tt.in, tt.bFound, bFound)
+		} else if b != tt.b {
+			t.Errorf("case=%q: want (b=%d), got (b=%d)", tt.in, tt.b, b)
+		}
+	}
+}
+
+func TestNthRegexp(t *testing.T) {
+	tests := []struct {
+		in string
+		a  string
+		b  string
+		ok bool
+	}{
+		{"-2n-2", "-2", "-2", true},
+		{"-2n+2", "-2", "+2", true},
+		{"-80n+100", "-80", "+100", true},
+		{"+80n+100", "+80", "+100", true},
+		{"80n+100", "80", "+100", true},
+		{" 80n+100 ", "", "", false},
+		{"80n+100 ", "", "", false},
+		{" 80n+100", "", "", false},
+		{"-23n", "-23", "", true},
+		{"foobar", "", "", false},
+	}
+
+	for _, tt := range tests {
+		submatch := nthRegexp.FindStringSubmatch(tt.in)
+		if submatch == nil {
+			if tt.ok {
+				t.Errorf("case=%q: failed to parse", tt.in)
+			}
+			continue
+		}
+		if !tt.ok {
+			t.Errorf("case=%q: expected to fail to parse", tt.in)
+			continue
+		}
+		if len(submatch) != 3 {
+			t.Errorf("case=%q: expected len(submatch)=3, got=%d", tt.in, len(submatch))
+			continue
+		}
+		if got := submatch[1]; got != tt.a {
+			t.Errorf("case=%q: expected a=%q, got a=%q", tt.in, tt.a, got)
+		}
+		if got := submatch[2]; got != tt.b {
+			t.Errorf("case=%q: expected b=%q, got b=%q", tt.in, tt.b, got)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package css
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -339,12 +340,17 @@ func (c *compiler) parseNthArgs() (a, b int, err error) {
 	c.skipSpace()
 	switch t := c.next(); t.typ {
 	case typeDimension:
-		if a, err = parseNth(t.val); err != nil {
+		var bFound bool
+		if a, b, bFound, err = parseNth(t.val); err != nil {
 			return 0, 0, &SyntaxError{err.Error(), t.start}
 		}
 		if minus {
 			a = 0 - a
 		}
+		if bFound {
+			return
+		}
+		b = 0
 	case typeNum:
 		if b, err = strconv.Atoi(t.val); err != nil {
 			return 0, 0, &SyntaxError{err.Error(), t.start}
@@ -383,15 +389,24 @@ func (c *compiler) parseNthArgs() (a, b int, err error) {
 	return
 }
 
-var parseNthErr = errors.New("string is not of form {number}n")
+var parseNthErr = errors.New("string is not of form {number}n or {number}n{number}")
 
-func parseNth(s string) (int, error) {
-	if s == "" || s[len(s)-1] != 'n' {
-		return 0, parseNthErr
+var nthRegexp = regexp.MustCompile(`^([-+]?[\d]+)n([-+]?[\d]+)?$`)
+
+func parseNth(s string) (a, b int, bFound bool, err error) {
+	submatch := nthRegexp.FindStringSubmatch(s)
+	if submatch == nil || len(submatch) != 3 {
+		return 0, 0, false, parseNthErr
 	}
-	n, err := strconv.Atoi(s[:len(s)-1])
-	if err != nil {
-		return 0, parseNthErr
+	if a, err = strconv.Atoi(submatch[1]); err != nil {
+		err = parseNthErr
+		return
 	}
-	return n, nil
+	if bFound = submatch[2] != ""; !bFound {
+		return
+	}
+	if b, err = strconv.Atoi(submatch[2]); err != nil {
+		err = parseNthErr
+	}
+	return
 }

@@ -171,6 +171,9 @@ func TestLexer(t *testing.T) {
 			token{typeIdent, "p", 7}, token{typeComma, ",", 8}, token{typeSpace, " ", 9},
 			token{typeIdent, "p", 10}, token{typeEOF, "", 11},
 		}},
+		{"-2n-1", []token{
+			token{typeSub, "-", 0}, token{typeDimension, "2n-1", 1}, token{typeEOF, "", 5},
+		}},
 	}
 	for i, tt := range tests {
 		l, err := newLexer(tt.s)
