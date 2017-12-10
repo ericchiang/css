@@ -1,0 +1,20 @@
+span > p, p
+p ~ span
+div > p
+span > p
+div div
+div *
+div .hi
+p :empty
+a.foo
+#foo
+a[id=foo]
+p:empty
+a:nth-child(odd)
+[id=foo]
+[id = 'foo']
+[id="foo"]
+[id|="hello"]
+[id^="hello"]
+[id$="hello"]
+[id*="hello"]
