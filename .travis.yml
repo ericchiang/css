@@ -1,0 +1,19 @@
+language: go
+
+go:
+  - 1.8
+  - 1.9.2
+  - tip
+
+install:
+  - go get -v ./...
+
+matrix:
+  allow_failures:
+  - go: tip
+
+script:
+  - make test
+
+notifications:
+  email: false

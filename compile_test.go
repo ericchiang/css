@@ -120,7 +120,7 @@ func TestCompileSelector(t *testing.T) {
 	for i, tt := range tests {
 		l, err := newLexer(tt.expr)
 		if err != nil {
-			t.Errorf("case=%d: could not create lexer %v", err)
+			t.Errorf("case=%d: could not create lexer %v",i,  err)
 			continue
 		}
 		go l.run()
@@ -187,14 +187,14 @@ func TestCompileSimpleSelectorSeq(t *testing.T) {
 	for i, tt := range tests {
 		l, err := newLexer(tt.expr)
 		if err != nil {
-			t.Errorf("case=%d: could not create lexer %v", err)
+			t.Errorf("case=%d: could not create lexer %v", i, err)
 			continue
 		}
 		go l.run()
 		c := newCompiler(l)
 		sel, err := c.compileSimpleSelectorSeq()
 		if err != nil {
-			t.Errorf("case=%d: compilation failed %v", err)
+			t.Errorf("case=%d: compilation failed %v",i,  err)
 			continue
 		}
 		if c.peek().typ != typeEOF {
@@ -254,14 +254,14 @@ func TestCompileAttr(t *testing.T) {
 	for i, tt := range tests {
 		l, err := newLexer(tt.expr)
 		if err != nil {
-			t.Errorf("case=%d: could not create lexer %v", err)
+			t.Errorf("case=%d: could not create lexer %v", i,err)
 			continue
 		}
 		go l.run()
 		c := newCompiler(l)
 		m, err := c.compileAttr()
 		if err != nil {
-			t.Errorf("case=%d: compilation failed %v", err)
+			t.Errorf("case=%d: compilation failed %v", i, err)
 			continue
 		}
 		if c.peek().typ != typeEOF {
@@ -286,10 +286,10 @@ func TestParthNthArgs(t *testing.T) {
 		{"4", 0, 4},
 		{"4n - 3", 4, -3},
 	}
-	for _, tt := range tests {
+	for i, tt := range tests {
 		l, err := newLexer(tt.expr)
 		if err != nil {
-			t.Errorf("case=%d: could not create lexer %v", err)
+			t.Errorf("case=%d: could not create lexer %v",i,  err)
 			continue
 		}
 		go l.run()
