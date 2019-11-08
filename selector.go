@@ -281,5 +281,5 @@ func (nth nthChild) matches(n *html.Node) bool {
 
 func posMatches(a, b, pos int) bool {
 	n := (pos - b + 1)
-	return (a == 0 && n == 0) || (n%a == 0 && n/a >= 0)
+	return (a == 0 && n == 0) || (a != 0 && n%a == 0 && n/a >= 0)
 }

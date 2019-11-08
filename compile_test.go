@@ -120,7 +120,7 @@ func TestCompileSelector(t *testing.T) {
 	for i, tt := range tests {
 		l, err := newLexer(tt.expr)
 		if err != nil {
-			t.Errorf("case=%d: could not create lexer %v",i,  err)
+			t.Errorf("case=%d: could not create lexer %v", i, err)
 			continue
 		}
 		go l.run()
@@ -183,6 +183,16 @@ func TestCompileSimpleSelectorSeq(t *testing.T) {
 			"a:nth-child(odd)",
 			[]string{`<a id="1"></a>`, `<a id="3"></a>`},
 		},
+		{
+			`<div class="page">
+				<ul class="tabs">
+					<li class="tab">Index</li>
+				</ul>
+			</div>
+			`,
+			`li:nth-child(2)`,
+			[]string{},
+		},
 	}
 	for i, tt := range tests {
 		l, err := newLexer(tt.expr)
@@ -194,7 +204,7 @@ func TestCompileSimpleSelectorSeq(t *testing.T) {
 		c := newCompiler(l)
 		sel, err := c.compileSimpleSelectorSeq()
 		if err != nil {
-			t.Errorf("case=%d: compilation failed %v",i,  err)
+			t.Errorf("case=%d: compilation failed %v", i, err)
 			continue
 		}
 		if c.peek().typ != typeEOF {
@@ -254,7 +264,7 @@ func TestCompileAttr(t *testing.T) {
 	for i, tt := range tests {
 		l, err := newLexer(tt.expr)
 		if err != nil {
-			t.Errorf("case=%d: could not create lexer %v", i,err)
+			t.Errorf("case=%d: could not create lexer %v", i, err)
 			continue
 		}
 		go l.run()
@@ -289,7 +299,7 @@ func TestParthNthArgs(t *testing.T) {
 	for i, tt := range tests {
 		l, err := newLexer(tt.expr)
 		if err != nil {
-			t.Errorf("case=%d: could not create lexer %v",i,  err)
+			t.Errorf("case=%d: could not create lexer %v", i, err)
 			continue
 		}
 		go l.run()
