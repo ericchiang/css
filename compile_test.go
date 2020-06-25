@@ -116,6 +116,11 @@ func TestCompileSelector(t *testing.T) {
 			"p :empty",
 			[]string{`<a id="foo"></a>`},
 		},
+		{
+			`<div><p><a id="foo"></a></p></div>`,
+			"div > p a",
+			[]string{`<a id="foo"></a>`},
+		},
 	}
 	for i, tt := range tests {
 		l, err := newLexer(tt.expr)

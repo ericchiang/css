@@ -119,18 +119,33 @@ func (c *compiler) compileSelector() (selector, error) {
 		return selector{}, err
 	}
 	sel := selector{selSeq: selSeq}
+	combination := false
 	for {
 		switch t := c.peek(); t.typ {
 		case typePlus, typeGreater, typeTilde, typeSpace:
 			c.next()
 			c.skipSpace()
+			combination = true
 			selSeq, err := c.compileSimpleSelectorSeq()
 			if err != nil {
 				return selector{}, err
 			}
 			sel.combs = append(sel.combs, combinatorSelector{t.typ, selSeq})
-		default:
+		case typeIdent:
+			if !combination {
+				return sel, nil
+			}
+
+			combination = false
+			selSeq, err := c.compileSimpleSelectorSeq()
+			if err != nil {
+				return selector{}, err
+			}
+			sel.combs = append(sel.combs, combinatorSelector{t.typ, selSeq})
+		case typeEOF, typeComma:
 			return sel, nil
+		default:
+			return selector{}, fmt.Errorf("Unhandled compiler selector %s", t.typ.String())
 		}
 		c.skipSpace()
 	}

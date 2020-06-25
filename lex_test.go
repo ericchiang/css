@@ -171,6 +171,11 @@ func TestLexer(t *testing.T) {
 			token{typeIdent, "p", 7}, token{typeComma, ",", 8}, token{typeSpace, " ", 9},
 			token{typeIdent, "p", 10}, token{typeEOF, "", 11},
 		}},
+		{"span > p p", []token{
+			token{typeIdent, "span", 0}, token{typeGreater, " >", 4}, token{typeSpace, " ", 6},
+			token{typeIdent, "p", 7}, token{typeSpace, " ", 8},
+			token{typeIdent, "p", 9}, token{typeEOF, "", 10},
+		}},
 		{"-2n-1", []token{
 			token{typeSub, "-", 0}, token{typeDimension, "2n-1", 1}, token{typeEOF, "", 5},
 		}},

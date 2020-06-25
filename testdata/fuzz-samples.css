@@ -2,6 +2,7 @@ span > p, p
 p ~ span
 div > p
 span > p
+span > p div
 div div
 div *
 div .hi
