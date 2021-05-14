@@ -170,18 +170,56 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
-			`@ @foo`,
+			`@ @foo @-bar`,
 			[]token{
 				tok(tokenDelim, "@"),
 				tok(tokenWhitespace, " "),
 				tok(tokenAtKeyword, "@foo"),
+				tok(tokenWhitespace, " "),
+				tok(tokenAtKeyword, "@-bar"),
 			},
 		},
 		{
-			`[]`,
+			`[]{}`,
 			[]token{
 				tok(tokenBracketOpen, "["),
 				tok(tokenBracketClose, "]"),
+				tok(tokenCurlyOpen, "{"),
+				tok(tokenCurlyClose, "}"),
+			},
+		},
+		{
+			`4.123e-2`,
+			[]token{
+				tok(tokenNumber, "4.123e-2"),
+			},
+		},
+		{
+			`foo bar(`,
+			[]token{
+				tok(tokenString, "foo"),
+				tok(tokenWhitespace, " "),
+				tok(tokenFunction, "bar("),
+			},
+		},
+		{
+			`url(foo) url( foo ) url url("foo")`,
+			[]token{
+				tok(tokenURL, "url(foo)"),
+				tok(tokenWhitespace, " "),
+				tok(tokenURL, "url( foo )"),
+				tok(tokenWhitespace, " "),
+				tok(tokenString, "url"),
+				tok(tokenWhitespace, " "),
+				tok(tokenFunction, "url("),
+				tok(tokenString, "\"foo\""),
+				tok(tokenParenClose, ")"),
+			},
+		},
+		{
+			`*`,
+			[]token{
+				tok(tokenDelim, "*"),
 			},
 		},
 	}
@@ -222,8 +260,11 @@ func TestLexerErr(t *testing.T) {
 	tests := []string{
 		"\"\\\n\"",        // Escape sequence is followed by a newline.
 		"\"\\000000000\"", // Escape sequence contains too many hex characters.
+		"\\",              // Invalid escape.
 		"\"",              // Unclosed string.
 		"\"\n\"",          // Newline in string.
+		"url(foo",         // URL hits EOF.
+		"url(foo())",      // URL hits '('.
 	}
 
 	for _, test := range tests {

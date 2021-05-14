@@ -357,7 +357,7 @@ func (l *lexer) startsURL() bool {
 		return false
 	}
 
-	l.popN(3)
+	l.popN(4)
 	return true
 }
 
@@ -382,9 +382,9 @@ func (l *lexer) consumeURL() (token, error) {
 			if r == ')' {
 				return l.token(tokenURL), nil
 			}
-			return token{}, l.errorf("unexpected character parsing URL: %v", r)
+			return token{}, l.errorf("unexpected character parsing URL: %c", r)
 		case r == '\'', r == '"', r == '(', isNonPrintable(r):
-			return token{}, l.errorf("invalid character parsing URL: %v", r)
+			return token{}, l.errorf("invalid character parsing URL: %c", r)
 		case r == '\\':
 			if !isValidEscape(r, l.peek()) {
 				return token{}, l.errorf("invalid '\\' parsing URL")
