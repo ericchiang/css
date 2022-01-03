@@ -228,11 +228,17 @@ type typeSelectorMatcher struct {
 	namespace   string
 }
 
-func (t *typeSelectorMatcher) match(n *html.Node) bool {
-	return (t.allAtoms || t.atom == n.DataAtom) &&
-		((t.noNamespace && n.Namespace == "") ||
-			(t.namespace == "") ||
-			(t.namespace == n.Namespace))
+func (t *typeSelectorMatcher) match(n *html.Node) (ok bool) {
+	if !(t.allAtoms || t.atom == n.DataAtom) {
+		return false
+	}
+	if t.noNamespace {
+		return n.Namespace == ""
+	}
+	if t.namespace == "" {
+		return true
+	}
+	return t.namespace == n.Namespace
 }
 
 func (c *compiler) typeSelector(s *typeSelector) *typeSelectorMatcher {
