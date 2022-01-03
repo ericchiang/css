@@ -177,6 +177,106 @@ func (p *parser) skipWhitespace() {
 	}
 }
 
+// <attribute-selector> = '[' <wq-name> ']' |
+//                        '[' <wq-name> <attr-matcher> [ <string-token> | <ident-token> ] <attr-modifier>? ']'
+// <attr-matcher> = [ '~' | '|' | '^' | '$' | '*' ]? '='
+// <attr-modifier> = i
+//
+// https://www.w3.org/TR/selectors-4/#typedef-attribute-selector
+type attributeSelector struct {
+	wqName   *wqName
+	matcher  string
+	val      string
+	modifier bool
+}
+
+func (p *parser) attributeSelector() (*attributeSelector, error) {
+	at := &attributeSelector{}
+
+	// '['
+	t, err := p.next()
+	if err != nil {
+		return nil, err
+	}
+	if t.typ != tokenBracketOpen {
+		return nil, p.errorf(t, "expected '['")
+	}
+	p.skipWhitespace()
+
+	// <wq-name>
+	name, err := p.wqName()
+	if err != nil {
+		return nil, err
+	}
+	at.wqName = name
+	p.skipWhitespace()
+
+	t, err = p.next()
+	if err != nil {
+		return nil, err
+	}
+	if t.typ == tokenBracketClose {
+		// Found ']', we're done.
+		return at, nil
+	}
+
+	// <attr-matcher> = [ '~' | '|' | '^' | '$' | '*' ]? '='
+	if t.typ != tokenDelim {
+		return nil, p.errorf(t, "expected '~', '|', '^', '$', '*' or '='")
+	}
+	switch t.s {
+	case "~", "|", "^", "$", "*", "=":
+	default:
+		return nil, p.errorf(t, "expected '~', '|', '^', '$', '*' or '='")
+	}
+	if t.s != "=" {
+		// https://www.w3.org/TR/selectors-4/#white-space
+		//
+		// Whitespace is forbidden between elements of the <attr-matcher>.
+
+		at.matcher = t.s
+		t, err = p.next()
+		if err != nil {
+			return nil, err
+		}
+		if !t.isDelim("=") {
+			return nil, p.errorf(t, "expected '='")
+		}
+	}
+	p.skipWhitespace()
+
+	// [ <string-token> | <ident-token> ]
+	strOrIdent, err := p.next()
+	if err != nil {
+		return nil, err
+	}
+	if !(strOrIdent.typ == tokenString || strOrIdent.typ != tokenIdent) {
+		return nil, p.errorf(t, "expected identifier or string")
+	}
+	at.val = t.s
+
+	p.skipWhitespace()
+
+	// <attr-modifier>?
+	t, err = p.next()
+	if err != nil {
+		return nil, err
+	}
+	if t.s == "i" {
+		at.modifier = true
+		p.skipWhitespace()
+
+		t, err = p.next()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if t.typ != tokenBracketClose {
+		return nil, p.errorf(t, "expected ']'")
+	}
+	return at, nil
+}
+
 type wqName struct {
 	hasPrefix bool
 	prefix    string

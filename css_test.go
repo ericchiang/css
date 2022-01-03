@@ -12,22 +12,28 @@ type testMethod struct {
 }
 
 func TestParser(t *testing.T) {
-	pClassSelector := testMethod{
+	parseClassSel := testMethod{
 		name: "classSelector()",
 		fn: func(p *parser) (interface{}, error) {
 			return p.classSelector()
 		},
 	}
-	pPseudoClass := testMethod{
+	parsePseudoClass := testMethod{
 		name: "pseudoClassSelector()",
 		fn: func(p *parser) (interface{}, error) {
 			return p.pseudoClassSelector()
 		},
 	}
-	pWQName := testMethod{
+	parseWQName := testMethod{
 		name: "wqName()",
 		fn: func(p *parser) (interface{}, error) {
 			return p.wqName()
+		},
+	}
+	parseAttrSel := testMethod{
+		name: "attributeSelector()",
+		fn: func(p *parser) (interface{}, error) {
+			return p.attributeSelector()
 		},
 	}
 
@@ -37,27 +43,50 @@ func TestParser(t *testing.T) {
 		want       interface{}
 		wantErrPos int
 	}{
-		{pClassSelector, ".foo", &classSelector{"foo"}, -1},
-		{pClassSelector, ".bar()", nil, 1},
-		{pClassSelector, "foo", nil, 0},
-		{pPseudoClass, ":foo", &pseudoClassSelector{"foo", "", nil}, -1},
-		{pPseudoClass, ": foo", nil, 1}, // https://www.w3.org/TR/selectors-4/#white-space
-		{pPseudoClass, ":foo()", &pseudoClassSelector{"", "foo(", nil}, -1},
-		{pPseudoClass, ":foo(a)", &pseudoClassSelector{"", "foo(", []token{
+		{parseClassSel, ".foo", &classSelector{"foo"}, -1},
+		{parseClassSel, ".bar()", nil, 1},
+		{parseClassSel, "foo", nil, 0},
+		{parsePseudoClass, ":foo", &pseudoClassSelector{"foo", "", nil}, -1},
+		{parsePseudoClass, ": foo", nil, 1}, // https://www.w3.org/TR/selectors-4/#white-space
+		{parsePseudoClass, ":foo()", &pseudoClassSelector{"", "foo(", nil}, -1},
+		{parsePseudoClass, ":foo(a)", &pseudoClassSelector{"", "foo(", []token{
 			token{tokenIdent, "a", 5},
 		}}, -1},
-		{pPseudoClass, ":foo(a, b)", &pseudoClassSelector{"", "foo(", []token{
+		{parsePseudoClass, ":foo(a, b)", &pseudoClassSelector{"", "foo(", []token{
 			token{tokenIdent, "a", 5},
 			token{tokenComma, ",", 6},
 			token{tokenWhitespace, " ", 7},
 			token{tokenIdent, "b", 8},
 		}}, -1},
-		{pWQName, "foo", &wqName{false, "", "foo"}, -1},
-		{pWQName, "foo|bar", &wqName{true, "foo", "bar"}, -1},
-		{pWQName, "|bar", &wqName{true, "", "bar"}, -1},
-		{pWQName, "*|bar", &wqName{true, "*", "bar"}, -1},
-		{pWQName, "foo|*", &wqName{false, "", "foo"}, -1},
-		{pWQName, "*foo", nil, 1},
+		{parseWQName, "foo", &wqName{false, "", "foo"}, -1},
+		{parseWQName, "foo|bar", &wqName{true, "foo", "bar"}, -1},
+		{parseWQName, "|bar", &wqName{true, "", "bar"}, -1},
+		{parseWQName, "*|bar", &wqName{true, "*", "bar"}, -1},
+		{parseWQName, "foo|*", &wqName{false, "", "foo"}, -1},
+		{parseWQName, "*foo", nil, 1},
+		{parseWQName, "foo |bar", &wqName{false, "", "foo"}, -1}, // Whitespace ignored
+		{parseWQName, "foo| bar", &wqName{false, "", "foo"}, -1}, // Whitespace ignored
+		{parseAttrSel, "[foo]", &attributeSelector{
+			&wqName{false, "", "foo"}, "", "", false,
+		}, -1},
+		{parseAttrSel, "[ foo = \"bar\" ]", &attributeSelector{
+			&wqName{false, "", "foo"}, "", "\"bar\"", false,
+		}, -1},
+		{parseAttrSel, "[foo=\"bar\"]", &attributeSelector{
+			&wqName{false, "", "foo"}, "", "\"bar\"", false,
+		}, -1},
+		{parseAttrSel, "[*|foo=\"bar\"]", &attributeSelector{
+			&wqName{true, "*", "foo"}, "", "\"bar\"", false,
+		}, -1},
+		{parseAttrSel, "[*|foo=bar]", &attributeSelector{
+			&wqName{true, "*", "foo"}, "", "bar", false,
+		}, -1},
+		{parseAttrSel, "[*|foo=bar i]", &attributeSelector{
+			&wqName{true, "*", "foo"}, "", "bar", true,
+		}, -1},
+		{parseAttrSel, "[foo^=bar]", &attributeSelector{
+			&wqName{false, "", "foo"}, "^", "bar", false,
+		}, -1},
 	}
 	for _, test := range tests {
 		t.Run(test.method.name+test.s, func(t *testing.T) {
