@@ -24,6 +24,12 @@ func TestParser(t *testing.T) {
 			return p.pseudoClassSelector()
 		},
 	}
+	pWQName := testMethod{
+		name: "wqName()",
+		fn: func(p *parser) (interface{}, error) {
+			return p.wqName()
+		},
+	}
 
 	tests := []struct {
 		method     testMethod
@@ -35,6 +41,7 @@ func TestParser(t *testing.T) {
 		{pClassSelector, ".bar()", nil, 1},
 		{pClassSelector, "foo", nil, 0},
 		{pPseudoClass, ":foo", &pseudoClassSelector{"foo", "", nil}, -1},
+		{pPseudoClass, ": foo", nil, 1}, // https://www.w3.org/TR/selectors-4/#white-space
 		{pPseudoClass, ":foo()", &pseudoClassSelector{"", "foo(", nil}, -1},
 		{pPseudoClass, ":foo(a)", &pseudoClassSelector{"", "foo(", []token{
 			token{tokenIdent, "a", 5},
@@ -45,6 +52,12 @@ func TestParser(t *testing.T) {
 			token{tokenWhitespace, " ", 7},
 			token{tokenIdent, "b", 8},
 		}}, -1},
+		{pWQName, "foo", &wqName{false, "", "foo"}, -1},
+		{pWQName, "foo|bar", &wqName{true, "foo", "bar"}, -1},
+		{pWQName, "|bar", &wqName{true, "", "bar"}, -1},
+		{pWQName, "*|bar", &wqName{true, "*", "bar"}, -1},
+		{pWQName, "foo|*", &wqName{false, "", "foo"}, -1},
+		{pWQName, "*foo", nil, 1},
 	}
 	for _, test := range tests {
 		t.Run(test.method.name+test.s, func(t *testing.T) {

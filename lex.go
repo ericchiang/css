@@ -138,6 +138,10 @@ func (t token) String() string {
 	return fmt.Sprintf("%s %q pos=%d", t.typ, t.s, t.pos)
 }
 
+func (t token) isDelim(s string) bool {
+	return t.typ == tokenDelim && t.s == s
+}
+
 type lexErr struct {
 	msg  string
 	last int
