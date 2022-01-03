@@ -16,6 +16,7 @@ func cmpDiff(x, y interface{}) string {
 		pseudoClassSelector{},
 		pseudoSelector{},
 		subclassSelector{},
+		token{},
 		typeSelector{},
 		wqName{},
 	))
@@ -29,19 +30,19 @@ func TestParse(t *testing.T) {
 		{"foo", []complexSelector{
 			{
 				sel: compoundSelector{
-					typeSelector: &typeSelector{value: "foo"},
+					typeSelector: &typeSelector{pos: 0, value: "foo"},
 				},
 			},
 		}},
 		{"foo, bar", []complexSelector{
 			{
 				sel: compoundSelector{
-					typeSelector: &typeSelector{value: "foo"},
+					typeSelector: &typeSelector{pos: 0, value: "foo"},
 				},
 			},
 			{
 				sel: compoundSelector{
-					typeSelector: &typeSelector{value: "bar"},
+					typeSelector: &typeSelector{pos: 5, value: "bar"},
 				},
 			},
 		}},
@@ -59,6 +60,88 @@ func TestParse(t *testing.T) {
 				sel: compoundSelector{
 					subClasses: []subclassSelector{
 						{idSelector: "foo"},
+					},
+				},
+			},
+		}},
+		{"foo > bar", []complexSelector{
+			{
+				sel: compoundSelector{
+					typeSelector: &typeSelector{pos: 0, value: "foo"},
+				},
+				combinator: ">",
+				next: &complexSelector{
+					sel: compoundSelector{
+						typeSelector: &typeSelector{pos: 6, value: "bar"},
+					},
+				},
+			},
+		}},
+		{"foo > bar||spam", []complexSelector{
+			{
+				sel: compoundSelector{
+					typeSelector: &typeSelector{value: "foo"},
+				},
+				combinator: ">",
+				next: &complexSelector{
+					sel: compoundSelector{
+						typeSelector: &typeSelector{pos: 6, value: "bar"},
+					},
+					combinator: "||",
+					next: &complexSelector{
+						sel: compoundSelector{
+							typeSelector: &typeSelector{pos: 11, value: "spam"},
+						},
+					},
+				},
+			},
+		}},
+		{"foo::bar", []complexSelector{
+			{
+				sel: compoundSelector{
+					typeSelector: &typeSelector{pos: 0, value: "foo"},
+					pseudoSelectors: []pseudoSelector{
+						{
+							element: pseudoClassSelector{ident: "bar"},
+						},
+					},
+				},
+			},
+		}},
+		{"foo::bar :spam :biz", []complexSelector{
+			{
+				sel: compoundSelector{
+					typeSelector: &typeSelector{pos: 0, value: "foo"},
+					pseudoSelectors: []pseudoSelector{
+						{
+							element: pseudoClassSelector{ident: "bar"},
+							classes: []pseudoClassSelector{{ident: "spam"}, {ident: "biz"}},
+						},
+					},
+				},
+			},
+		}},
+		{"foo::myfunc(a, b, (c))", []complexSelector{
+			{
+				sel: compoundSelector{
+					typeSelector: &typeSelector{pos: 0, value: "foo"},
+					pseudoSelectors: []pseudoSelector{
+						{
+							element: pseudoClassSelector{
+								function: "myfunc(",
+								args: []token{
+									{tokenIdent, "a", 12},
+									{tokenComma, ",", 13},
+									{tokenWhitespace, " ", 14},
+									{tokenIdent, "b", 15},
+									{tokenComma, ",", 16},
+									{tokenWhitespace, " ", 17},
+									{tokenParenOpen, "(", 18},
+									{tokenIdent, "c", 19},
+									{tokenParenClose, ")", 20},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -155,15 +238,15 @@ func TestSubParser(t *testing.T) {
 		{parseWQName, "*foo", nil, 1},
 		{parseWQName, "foo |bar", &wqName{false, "", "foo"}, -1}, // Whitespace ignored
 		{parseWQName, "foo| bar", &wqName{false, "", "foo"}, -1}, // Whitespace ignored
-		{parseTypeSel, "foo", &typeSelector{false, "", "foo"}, -1},
-		{parseTypeSel, "foo|bar", &typeSelector{true, "foo", "bar"}, -1},
-		{parseTypeSel, "|bar", &typeSelector{true, "", "bar"}, -1},
-		{parseTypeSel, "*|bar", &typeSelector{true, "*", "bar"}, -1},
-		{parseTypeSel, "foo|*", &typeSelector{true, "foo", "*"}, -1},
-		{parseTypeSel, "*|*", &typeSelector{true, "*", "*"}, -1},
+		{parseTypeSel, "foo", &typeSelector{0, false, "", "foo"}, -1},
+		{parseTypeSel, "foo|bar", &typeSelector{0, true, "foo", "bar"}, -1},
+		{parseTypeSel, "|bar", &typeSelector{0, true, "", "bar"}, -1},
+		{parseTypeSel, "*|bar", &typeSelector{0, true, "*", "bar"}, -1},
+		{parseTypeSel, "foo|*", &typeSelector{0, true, "foo", "*"}, -1},
+		{parseTypeSel, "*|*", &typeSelector{0, true, "*", "*"}, -1},
 		{parseTypeSel, "*foo", nil, 1},
-		{parseTypeSel, "foo |bar", &typeSelector{false, "", "foo"}, -1}, // Whitespace ignored
-		{parseTypeSel, "foo| bar", &typeSelector{false, "", "foo"}, -1}, // Whitespace ignored
+		{parseTypeSel, "foo |bar", &typeSelector{0, false, "", "foo"}, -1}, // Whitespace ignored
+		{parseTypeSel, "foo| bar", &typeSelector{0, false, "", "foo"}, -1}, // Whitespace ignored
 		{parseAttrSel, "[foo]", &attributeSelector{
 			&wqName{false, "", "foo"}, "", "", false,
 		}, -1},

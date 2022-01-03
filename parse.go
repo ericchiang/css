@@ -232,14 +232,14 @@ func (p *parser) pseudoSelector() (*pseudoSelector, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	if !t.isDelim(":") {
+	if t.typ != tokenColon {
 		return nil, false, nil
 	}
 	t, err = p.peekN(1)
 	if err != nil {
 		return nil, false, err
 	}
-	if !t.isDelim(":") {
+	if t.typ != tokenColon {
 		return nil, false, nil
 	}
 	p.next()
@@ -255,7 +255,7 @@ func (p *parser) pseudoSelector() (*pseudoSelector, bool, error) {
 		if err != nil {
 			return nil, false, err
 		}
-		if !t.isDelim(":") {
+		if t.typ != tokenColon {
 			return ps, true, nil
 		}
 		cs, err := p.pseudoClassSelector()
@@ -267,6 +267,7 @@ func (p *parser) pseudoSelector() (*pseudoSelector, bool, error) {
 }
 
 type typeSelector struct {
+	pos       int
 	hasPrefix bool
 	prefix    string
 	value     string
@@ -291,6 +292,7 @@ func (p *parser) typeSelector() (*typeSelector, bool, error) {
 		return nil, false, err
 	}
 	return &typeSelector{
+		pos:       t.pos,
 		hasPrefix: name.hasPrefix,
 		prefix:    name.prefix,
 		value:     name.value,
