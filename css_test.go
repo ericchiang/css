@@ -43,6 +43,19 @@ func TestParser(t *testing.T) {
 			return ss, nil
 		},
 	}
+	parseTypeSel := testMethod{
+		name: "typeSelector()",
+		fn: func(p *parser) (interface{}, error) {
+			s, ok, err := p.typeSelector()
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				return false, nil
+			}
+			return s, nil
+		},
+	}
 
 	tests := []struct {
 		method     testMethod
@@ -67,9 +80,19 @@ func TestParser(t *testing.T) {
 		{parseWQName, "|bar", &wqName{true, "", "bar"}, -1},
 		{parseWQName, "*|bar", &wqName{true, "*", "bar"}, -1},
 		{parseWQName, "foo|*", &wqName{false, "", "foo"}, -1},
+		{parseWQName, "*|*", nil, 2},
 		{parseWQName, "*foo", nil, 1},
 		{parseWQName, "foo |bar", &wqName{false, "", "foo"}, -1}, // Whitespace ignored
 		{parseWQName, "foo| bar", &wqName{false, "", "foo"}, -1}, // Whitespace ignored
+		{parseTypeSel, "foo", &typeSelector{false, "", "foo"}, -1},
+		{parseTypeSel, "foo|bar", &typeSelector{true, "foo", "bar"}, -1},
+		{parseTypeSel, "|bar", &typeSelector{true, "", "bar"}, -1},
+		{parseTypeSel, "*|bar", &typeSelector{true, "*", "bar"}, -1},
+		{parseTypeSel, "foo|*", &typeSelector{true, "foo", "*"}, -1},
+		{parseTypeSel, "*|*", &typeSelector{true, "*", "*"}, -1},
+		{parseTypeSel, "*foo", nil, 1},
+		{parseTypeSel, "foo |bar", &typeSelector{false, "", "foo"}, -1}, // Whitespace ignored
+		{parseTypeSel, "foo| bar", &typeSelector{false, "", "foo"}, -1}, // Whitespace ignored
 		{parseAttrSel, "[foo]", &attributeSelector{
 			&wqName{false, "", "foo"}, "", "", false,
 		}, -1},
@@ -102,6 +125,15 @@ func TestParser(t *testing.T) {
 			pseudoClassSelector: &pseudoClassSelector{"foo", "", nil},
 		}, -1},
 		{parseSubclassSel, "::foo", false, -1},
+		{parseWQName, "foo", &wqName{false, "", "foo"}, -1},
+		{parseWQName, "foo|bar", &wqName{true, "foo", "bar"}, -1},
+		{parseWQName, "|bar", &wqName{true, "", "bar"}, -1},
+		{parseWQName, "*|bar", &wqName{true, "*", "bar"}, -1},
+		{parseWQName, "foo|*", &wqName{false, "", "foo"}, -1},
+		{parseWQName, "*|*", nil, 2},
+		{parseWQName, "*foo", nil, 1},
+		{parseWQName, "foo |bar", &wqName{false, "", "foo"}, -1}, // Whitespace ignored
+		{parseWQName, "foo| bar", &wqName{false, "", "foo"}, -1}, // Whitespace ignored
 	}
 	for _, test := range tests {
 		t.Run(test.method.name+test.s, func(t *testing.T) {

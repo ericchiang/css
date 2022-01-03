@@ -66,6 +66,37 @@ func (p *parser) errorf(t token, msg string, v ...interface{}) error {
 	return &parseErr{fmt.Sprintf(msg, v...), t}
 }
 
+type typeSelector struct {
+	hasPrefix bool
+	prefix    string
+	value     string
+}
+
+// <type-selector> = <wq-name> | <ns-prefix>? '*'
+// <wq-name> = <ns-prefix>? <ident-token>
+// <ns-prefix> = [ <ident-token> | '*' ]? '|'
+//
+// Whitespace is disallowed.
+func (p *parser) typeSelector() (*typeSelector, bool, error) {
+	t, err := p.peek()
+	if err != nil {
+		return nil, false, err
+	}
+	if !(t.typ == tokenIdent || t.isDelim("*") || t.isDelim("|")) {
+		return nil, false, nil
+	}
+
+	name, err := p.parseName(true)
+	if err != nil {
+		return nil, false, err
+	}
+	return &typeSelector{
+		hasPrefix: name.hasPrefix,
+		prefix:    name.prefix,
+		value:     name.value,
+	}, true, nil
+}
+
 type subclassSelector struct {
 	idSelector          string
 	classSelector       string
@@ -341,6 +372,15 @@ type wqName struct {
 //
 // https://www.w3.org/TR/selectors-4/#typedef-wq-name
 func (p *parser) wqName() (*wqName, error) {
+	return p.parseName(false)
+}
+
+// parseName handles either <wq-name> or <type-selector>, which are almost
+// identical. However <type-selector> allows '*' as the final element.
+//
+// <wq-name>       = <ns-prefix>? <ident-token>
+// <type-selector> = <ns-prefix>? [ <ident-token> | '*' ]
+func (p *parser) parseName(allowStar bool) (*wqName, error) {
 	t, err := p.next()
 	if err != nil {
 		return nil, err
@@ -368,7 +408,7 @@ func (p *parser) wqName() (*wqName, error) {
 		if err != nil {
 			return nil, err
 		}
-		if ident.typ != tokenIdent {
+		if !(ident.typ == tokenIdent || (allowStar && ident.isDelim("*"))) {
 			return nil, p.errorf(ident, "expected identifier")
 		}
 		return &wqName{true, t.s, ident.s}, nil
@@ -389,7 +429,7 @@ func (p *parser) wqName() (*wqName, error) {
 	if err != nil {
 		return nil, err
 	}
-	if ident.typ != tokenIdent {
+	if !(ident.typ == tokenIdent || (allowStar && ident.isDelim("*"))) {
 		return &wqName{false, "", t.s}, nil
 	}
 	// Consume peeked tokens.
