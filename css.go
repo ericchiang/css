@@ -4,6 +4,7 @@ package css
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -178,8 +179,9 @@ func (c *compiler) compoundSelector(s *compoundSelector) *compoundSelectorMatche
 }
 
 type subclassSelectorMatcher struct {
-	idSelector    string
-	classSelector string
+	idSelector        string
+	classSelector     string
+	attributeSelector *attributeSelectorMatcher
 }
 
 func (s *subclassSelectorMatcher) match(n *html.Node) bool {
@@ -200,6 +202,10 @@ func (s *subclassSelectorMatcher) match(n *html.Node) bool {
 		}
 		return false
 	}
+
+	if s.attributeSelector != nil {
+		return s.attributeSelector.match(n)
+	}
 	return false
 }
 
@@ -209,9 +215,7 @@ func (c *compiler) subclassSelector(s *subclassSelector) *subclassSelectorMatche
 		classSelector: s.classSelector,
 	}
 	if s.attributeSelector != nil {
-		if c.errorf(s.pos, "attribute selector not supported") {
-			return nil
-		}
+		m.attributeSelector = c.attributeSelector(s.attributeSelector)
 	}
 	if s.pseudoClassSelector != nil {
 		if c.errorf(s.pos, "pseudo class selector not supported") {
@@ -221,24 +225,124 @@ func (c *compiler) subclassSelector(s *subclassSelector) *subclassSelectorMatche
 	return m
 }
 
-type typeSelectorMatcher struct {
-	allAtoms    bool
-	atom        atom.Atom
+type attributeSelectorMatcher struct {
+	ns namespaceMatcher
+	fn func(key, val string) bool
+}
+
+func (a *attributeSelectorMatcher) match(n *html.Node) bool {
+	for _, attr := range n.Attr {
+		if a.ns.match(attr.Namespace) && a.fn(attr.Key, attr.Val) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *compiler) attributeSelector(s *attributeSelector) *attributeSelectorMatcher {
+	m := &attributeSelectorMatcher{
+		ns: newNamespaceMatcher(s.wqName.hasPrefix, s.wqName.prefix),
+	}
+	key := s.wqName.value
+	val := s.val
+
+	if s.modifier {
+		key = strings.ToLower(key)
+		val = strings.ToLower(val)
+	}
+
+	// https://developer.mozilla.org/en-US/docs/Web/CSS/Attribute_selectors
+	switch s.matcher {
+	case "=":
+		m.fn = func(k, v string) bool { return k == key && v == val }
+	case "~=":
+		m.fn = func(k, v string) bool {
+			if k != key {
+				return false
+			}
+			for _, f := range strings.Fields(v) {
+				if f == val {
+					return true
+				}
+			}
+			return false
+		}
+	case "|=":
+		// "Represents elements with an attribute name of attr whose value can be
+		// exactly value or can begin with value immediately followed by a hyphen,
+		// - (U+002D). It is often used for language subcode matches."
+		m.fn = func(k, v string) bool {
+			return k == key && (v == val || strings.HasPrefix(v, val+"-"))
+		}
+	case "^=":
+		m.fn = func(k, v string) bool {
+			return k == key && strings.HasPrefix(v, val)
+		}
+	case "$=":
+		m.fn = func(k, v string) bool {
+			return k == key && strings.HasSuffix(v, val)
+		}
+	case "*=":
+		m.fn = func(k, v string) bool {
+			return k == key && strings.Contains(v, val)
+		}
+	case "":
+		m.fn = func(k, v string) bool { return k == key }
+	default:
+		c.errorf(s.pos, "unsupported attribute matcher: %s", s.matcher)
+		return nil
+	}
+	if s.modifier {
+		fn := m.fn
+		m.fn = func(k, v string) bool {
+			k = strings.ToLower(k)
+			v = strings.ToLower(v)
+			return fn(k, v)
+		}
+	}
+	return m
+}
+
+// namespaceMatcher performs <ns-prefix> matching for elements and attributes.
+type namespaceMatcher struct {
 	noNamespace bool
 	namespace   string
+}
+
+func newNamespaceMatcher(hasPrefix bool, prefix string) namespaceMatcher {
+	if !hasPrefix {
+		return namespaceMatcher{}
+	}
+	if prefix == "" {
+		return namespaceMatcher{noNamespace: true}
+	}
+	if prefix == "*" {
+		return namespaceMatcher{}
+	}
+	return namespaceMatcher{namespace: prefix}
+}
+
+func (n *namespaceMatcher) match(ns string) bool {
+	if n.noNamespace {
+		return ns == ""
+	}
+	if n.namespace == "" {
+		return true
+	}
+	return n.namespace == ns
+}
+
+type typeSelectorMatcher struct {
+	allAtoms bool
+	atom     atom.Atom
+	ns       namespaceMatcher
 }
 
 func (t *typeSelectorMatcher) match(n *html.Node) (ok bool) {
 	if !(t.allAtoms || t.atom == n.DataAtom) {
 		return false
 	}
-	if t.noNamespace {
-		return n.Namespace == ""
-	}
-	if t.namespace == "" {
-		return true
-	}
-	return t.namespace == n.Namespace
+	return t.ns.match(n.Namespace)
 }
 
 func (c *compiler) typeSelector(s *typeSelector) *typeSelectorMatcher {
@@ -254,15 +358,6 @@ func (c *compiler) typeSelector(s *typeSelector) *typeSelectorMatcher {
 		}
 		m.atom = a
 	}
-	if !s.hasPrefix {
-		return m
-	}
-	switch s.prefix {
-	case "":
-		m.noNamespace = true
-	case "*":
-	default:
-		m.namespace = s.prefix
-	}
+	m.ns = newNamespaceMatcher(s.hasPrefix, s.prefix)
 	return m
 }

@@ -83,6 +83,68 @@ func TestSelector(t *testing.T) {
 			`<div><svg xmlns="http://www.w3.org/2000/svg"><a class="foo"></a></svg></div>`,
 			[]string{`<svg xmlns="http://www.w3.org/2000/svg"><a class="foo"></a></svg>`},
 		},
+		{
+			"div[class=foo]",
+			`<h1><h2 class="foo"></h2><div class="foo"></div><div id="foo"></div></h1>`,
+			[]string{
+				`<div class="foo"></div>`,
+			},
+		},
+		{
+			"div[class*=o]",
+			`<h1><h2 class="foo"></h2><div class="foo"></div><div id="foo"></div></h1>`,
+			[]string{
+				`<div class="foo"></div>`,
+			},
+		},
+		{
+			"div[class~=foo]",
+			`<h1><h2 class="foo"></h2><div class="bar foo"></div><div id="foo"></div></h1>`,
+			[]string{
+				`<div class="bar foo"></div>`,
+			},
+		},
+		{
+			"div[class|=foo]",
+			`<h1><div class="foo bar"></div><div class="foo"></div><div class="foo-bar"></div></h1>`,
+			[]string{
+				`<div class="foo"></div>`,
+				`<div class="foo-bar"></div>`,
+			},
+		},
+		{
+			"div[class^=foo]",
+			`<h1><div class="bar foo"></div><div class="foo"></div><div class="foo-bar"></div></h1>`,
+			[]string{
+				`<div class="foo"></div>`,
+				`<div class="foo-bar"></div>`,
+			},
+		},
+		{
+			"div[class$=foo]",
+			`<h1><div class="bar foo"></div><div class="foo"></div><div class="foo-bar"></div></h1>`,
+			[]string{
+				`<div class="bar foo"></div>`,
+				`<div class="foo"></div>`,
+			},
+		},
+		{
+			"div[class]",
+			`<h1><div class="bar foo"></div><div class="foo"></div><div class="foo-bar"></div></h1>`,
+			[]string{
+				`<div class="bar foo"></div>`,
+				`<div class="foo"></div>`,
+				`<div class="foo-bar"></div>`,
+			},
+		},
+		{
+			"div[class^=foO i]",
+			`<h1><div class="bar foo"></div><div class="fOo"></div><div class="Foo-bar"></div></h1>`,
+			[]string{
+				`<div class="fOo"></div>`,
+				`<div class="Foo-bar"></div>`,
+			},
+		},
 	}
 	for _, test := range tests {
 		s, err := Parse(test.sel)

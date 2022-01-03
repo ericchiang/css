@@ -161,7 +161,7 @@ func (p *parser) complexSelector() (*complexSelector, error) {
 		}
 		if !ok {
 			if last.combinator != "" {
-				return nil, p.errorf(t, "expected compound selector")
+				return nil, p.errorf(t, "expected identifier, '#', '*', '.', '|', '[', ':'")
 			}
 			return sel, nil
 		}
@@ -474,9 +474,12 @@ func (p *parser) skipWhitespace() {
 //                        '[' <wq-name> <attr-matcher> [ <string-token> | <ident-token> ] <attr-modifier>? ']'
 // <attr-matcher> = [ '~' | '|' | '^' | '$' | '*' ]? '='
 // <attr-modifier> = i
+// <wq-name> = <ns-prefix>? <ident-token>
+// <ns-prefix> = [ <ident-token> | '*' ]? '|'
 //
 // https://www.w3.org/TR/selectors-4/#typedef-attribute-selector
 type attributeSelector struct {
+	pos      int
 	wqName   *wqName
 	matcher  string
 	val      string
@@ -484,8 +487,6 @@ type attributeSelector struct {
 }
 
 func (p *parser) attributeSelector() (*attributeSelector, error) {
-	at := &attributeSelector{}
-
 	// '['
 	t, err := p.next()
 	if err != nil {
@@ -494,6 +495,7 @@ func (p *parser) attributeSelector() (*attributeSelector, error) {
 	if t.typ != tokenBracketOpen {
 		return nil, p.errorf(t, "expected '['")
 	}
+	at := &attributeSelector{pos: t.pos}
 	p.skipWhitespace()
 
 	// <wq-name>
@@ -522,12 +524,13 @@ func (p *parser) attributeSelector() (*attributeSelector, error) {
 	default:
 		return nil, p.errorf(t, "expected '~', '|', '^', '$', '*' or '='")
 	}
+	at.matcher = "="
 	if t.s != "=" {
 		// https://www.w3.org/TR/selectors-4/#white-space
 		//
 		// Whitespace is forbidden between elements of the <attr-matcher>.
 
-		at.matcher = t.s
+		at.matcher = t.s + "="
 		t, err = p.next()
 		if err != nil {
 			return nil, err

@@ -271,32 +271,32 @@ func TestSubParser(t *testing.T) {
 		{parseTypeSel, "foo |bar", &typeSelector{0, false, "", "foo"}, -1}, // Whitespace ignored
 		{parseTypeSel, "foo| bar", &typeSelector{0, false, "", "foo"}, -1}, // Whitespace ignored
 		{parseAttrSel, "[foo]", &attributeSelector{
-			&wqName{false, "", "foo"}, "", "", false,
+			0, &wqName{false, "", "foo"}, "", "", false,
 		}, -1},
 		{parseAttrSel, "[ foo = \"bar\" ]", &attributeSelector{
-			&wqName{false, "", "foo"}, "", "bar", false,
+			0, &wqName{false, "", "foo"}, "=", "bar", false,
 		}, -1},
 		{parseAttrSel, "[foo=\"bar\"]", &attributeSelector{
-			&wqName{false, "", "foo"}, "", "bar", false,
+			0, &wqName{false, "", "foo"}, "=", "bar", false,
 		}, -1},
 		{parseAttrSel, "[*|foo=\"bar\"]", &attributeSelector{
-			&wqName{true, "*", "foo"}, "", "bar", false,
+			0, &wqName{true, "*", "foo"}, "=", "bar", false,
 		}, -1},
 		{parseAttrSel, "[*|foo=bar]", &attributeSelector{
-			&wqName{true, "*", "foo"}, "", "bar", false,
+			0, &wqName{true, "*", "foo"}, "=", "bar", false,
 		}, -1},
 		{parseAttrSel, "[*|foo=bar i]", &attributeSelector{
-			&wqName{true, "*", "foo"}, "", "bar", true,
+			0, &wqName{true, "*", "foo"}, "=", "bar", true,
 		}, -1},
 		{parseAttrSel, "[foo^=bar]", &attributeSelector{
-			&wqName{false, "", "foo"}, "^", "bar", false,
+			0, &wqName{false, "", "foo"}, "^=", "bar", false,
 		}, -1},
 		{parseSubclassSel, "", false, -1},
 		{parseSubclassSel, "#foo", &subclassSelector{idSelector: "foo"}, -1},
 		{parseSubclassSel, ".foo", &subclassSelector{classSelector: "foo"}, -1},
 		{parseSubclassSel, ".foo()", nil, 1},
 		{parseSubclassSel, "[foo=bar]", &subclassSelector{
-			attributeSelector: &attributeSelector{&wqName{false, "", "foo"}, "", "bar", false},
+			attributeSelector: &attributeSelector{0, &wqName{false, "", "foo"}, "=", "bar", false},
 		}, -1},
 		{parseSubclassSel, ":foo", &subclassSelector{
 			pseudoClassSelector: &pseudoClassSelector{"foo", "", nil},
