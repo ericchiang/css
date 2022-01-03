@@ -66,6 +66,206 @@ func (p *parser) errorf(t token, msg string, v ...interface{}) error {
 	return &parseErr{fmt.Sprintf(msg, v...), t}
 }
 
+func (p *parser) parse() ([]complexSelector, error) {
+	var sels []complexSelector
+	p.skipWhitespace()
+	for {
+		cs, err := p.complexSelector()
+		if err != nil {
+			return nil, err
+		}
+		sels = append(sels, *cs)
+		p.skipWhitespace()
+		t, err := p.next()
+		if err != nil {
+			return nil, err
+		}
+		if t.typ == tokenEOF {
+			return sels, nil
+		}
+		if t.typ != tokenComma {
+			return nil, p.errorf(t, "expected ',' or EOF")
+		}
+		p.skipWhitespace()
+	}
+}
+
+type complexSelector struct {
+	sel        compoundSelector
+	combinator string
+	next       *complexSelector
+}
+
+func (p *parser) complexSelector() (*complexSelector, error) {
+	t, err := p.peek() // peek the first token for creating errors.
+	if err != nil {
+		return nil, err
+	}
+
+	sel := &complexSelector{}
+	cs, ok, err := p.compoundSelector()
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		//  <compound-selector> can start with:
+		//  |-- <type-selector>
+		//  | \-- <ns-prefix>? [ '*' | <ident-token> ]
+		//  |   \-- [ <ident-token> | '*' ]? '|'
+		//  |-- <subclass-selector>
+		//  | |-- <id-selector> = <hash-token>
+		//  | |-- <class-selector> = '.' <ident-token>
+		//  | |-- <attribute-selector> = '[' ...
+		//  | \-- <pseudo-class-selector> = ':' ...
+		//  \-- <pseudo-element-selector> = ':' ...
+		return nil, p.errorf(t, "expected identifier, '#', '*', '.', '|', '[', ':'")
+	}
+	sel.sel = *cs
+
+	p.skipWhitespace()
+	last := sel
+	for {
+		t, err = p.peek()
+		if err != nil {
+			return nil, err
+		}
+		if t.typ == tokenDelim {
+			switch t.s {
+			case ">", "+", "~":
+				p.next()
+				p.skipWhitespace()
+				last.combinator = t.s
+				if t, err = p.peek(); err != nil {
+					return nil, err
+				}
+			case "|":
+				t, err = p.peekN(1)
+				if err != nil {
+					return nil, err
+				}
+				if t.isDelim("|") {
+					p.next()
+					p.next()
+					p.skipWhitespace()
+					last.combinator = "||"
+					if t, err = p.peek(); err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+		s, ok, err := p.compoundSelector()
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			if last.combinator != "" {
+				return nil, p.errorf(t, "expected compound selector")
+			}
+			return sel, nil
+		}
+		next := &complexSelector{sel: *s}
+		last.next = next
+		last = next
+	}
+}
+
+type compoundSelector struct {
+	typeSelector    *typeSelector // may be nil
+	subClasses      []subclassSelector
+	pseudoSelectors []pseudoSelector
+}
+
+// <compound-selector> = [ <type-selector>? <subclass-selector>*
+//                         [ <pseudo-element-selector> <pseudo-class-selector>* ]* ]!
+//
+// Whitespace is disallowed between top level elements.
+func (p *parser) compoundSelector() (*compoundSelector, bool, error) {
+	found := false
+	cs := &compoundSelector{}
+	ts, ok, err := p.typeSelector()
+	if err != nil {
+		return nil, false, err
+	}
+	if ok {
+		found = true
+		cs.typeSelector = ts
+	}
+	for {
+		sc, ok, err := p.subclassSelector()
+		if err != nil {
+			return nil, false, err
+		}
+		if !ok {
+			break
+		}
+		found = true
+		cs.subClasses = append(cs.subClasses, *sc)
+	}
+	for {
+		ps, ok, err := p.pseudoSelector()
+		if err != nil {
+			return nil, false, err
+		}
+		if !ok {
+			break
+		}
+		found = true
+		cs.pseudoSelectors = append(cs.pseudoSelectors, *ps)
+	}
+	if !found {
+		return nil, false, nil
+	}
+	return cs, true, nil
+}
+
+type pseudoSelector struct {
+	element pseudoClassSelector
+	classes []pseudoClassSelector
+}
+
+// Implements a subset of the <compound-selector> logic.
+//
+// <pseudo-element-selector> <pseudo-class-selector>*
+func (p *parser) pseudoSelector() (*pseudoSelector, bool, error) {
+	t, err := p.peek()
+	if err != nil {
+		return nil, false, err
+	}
+	if !t.isDelim(":") {
+		return nil, false, nil
+	}
+	t, err = p.peekN(1)
+	if err != nil {
+		return nil, false, err
+	}
+	if !t.isDelim(":") {
+		return nil, false, nil
+	}
+	p.next()
+
+	ele, err := p.pseudoClassSelector()
+	if err != nil {
+		return nil, false, err
+	}
+	ps := &pseudoSelector{element: *ele}
+	for {
+		p.skipWhitespace()
+		t, err := p.peek()
+		if err != nil {
+			return nil, false, err
+		}
+		if !t.isDelim(":") {
+			return ps, true, nil
+		}
+		cs, err := p.pseudoClassSelector()
+		if err != nil {
+			return nil, false, err
+		}
+		ps.classes = append(ps.classes, *cs)
+	}
+}
+
 type typeSelector struct {
 	hasPrefix bool
 	prefix    string

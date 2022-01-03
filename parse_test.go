@@ -4,14 +4,85 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
+
+func cmpDiff(x, y interface{}) string {
+	return cmp.Diff(x, y, cmp.AllowUnexported(
+		attributeSelector{},
+		complexSelector{},
+		compoundSelector{},
+		pseudoClassSelector{},
+		pseudoSelector{},
+		subclassSelector{},
+		typeSelector{},
+		wqName{},
+	))
+}
+
+func TestParse(t *testing.T) {
+	tests := []struct {
+		s    string
+		want []complexSelector
+	}{
+		{"foo", []complexSelector{
+			{
+				sel: compoundSelector{
+					typeSelector: &typeSelector{value: "foo"},
+				},
+			},
+		}},
+		{"foo, bar", []complexSelector{
+			{
+				sel: compoundSelector{
+					typeSelector: &typeSelector{value: "foo"},
+				},
+			},
+			{
+				sel: compoundSelector{
+					typeSelector: &typeSelector{value: "bar"},
+				},
+			},
+		}},
+		{".foo", []complexSelector{
+			{
+				sel: compoundSelector{
+					subClasses: []subclassSelector{
+						{classSelector: "foo"},
+					},
+				},
+			},
+		}},
+		{"#foo", []complexSelector{
+			{
+				sel: compoundSelector{
+					subClasses: []subclassSelector{
+						{idSelector: "foo"},
+					},
+				},
+			},
+		}},
+	}
+	for _, test := range tests {
+		p := newParser(test.s)
+		got, err := p.parse()
+		if err != nil {
+			t.Errorf("parsing %q: %v", test.s, err)
+			continue
+		}
+		if diff := cmpDiff(test.want, got); diff != "" {
+			t.Errorf("parsing %q returned diff (-want +got) %s", test.s, diff)
+		}
+	}
+}
 
 type testMethod struct {
 	name string
 	fn   func(p *parser) (interface{}, error)
 }
 
-func TestParser(t *testing.T) {
+func TestSubParser(t *testing.T) {
 	parsePseudoClass := testMethod{
 		name: "pseudoClassSelector()",
 		fn: func(p *parser) (interface{}, error) {
