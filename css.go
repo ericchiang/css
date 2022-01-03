@@ -1,80 +1,67 @@
 package css
 
-import "errors"
+type parseErr struct {
+	msg string
+	t   token
+}
 
-var eofErr = errors.New("eof")
+func (p *parseErr) Error() string {
+	return p.msg
+}
 
 type parser struct {
 	l *lexer
 
 	peeked bool
-	token  token
+	t      token
 	err    error
 }
 
-func (p *parser) peekIs(typ tokenType) bool {
-	t, err := p.peek()
-	return err == nil && t.typ == typ
+func newParser(s string) *parser {
+	return &parser{l: newLexer(s)}
 }
 
 func (p *parser) peek() (token, error) {
-	if !p.peeked {
-		p.token, p.err = p.l.next()
+	if p.peeked {
+		return p.t, p.err
 	}
-	return p.token, p.err
+	p.peeked = true
+	p.t, p.err = p.l.next()
+	return p.t, p.err
 }
 
-func (p *parser) pop() (token, error) {
-	t, err := p.peek()
-	p.peeked = false
-	return t, err
-}
-
-type selector struct {
-	complexSelectors []*complexSelector
-}
-
-func (p *parser) skipWhitespace() {
-	for {
-		t, err := p.peek()
-		if err != nil {
-			return
-		}
-		if t.typ != tokenWhitespace {
-			return
-		}
-		p.pop()
+func (p *parser) next() (token, error) {
+	if p.peeked {
+		p.peeked = false
+		return p.t, p.err
 	}
+	return p.l.next()
 }
 
-func (p *parser) selector() (*selector, error) {
-	s := &selector{}
-	for {
-		p.skipWhitespace()
-		if p.peekIs(tokenEOF) {
-			return s, nil
-		}
-		cs, err := p.complexSelector()
-		if err != nil {
-			return nil, err
-		}
-		s.complexSelectors = append(s.complexSelectors, cs)
+func (p *parser) error(t token, msg string) error {
+	return &parseErr{msg, t}
+}
+
+type classSelector struct {
+	class string
+}
+
+// https://www.w3.org/TR/selectors-4/#typedef-class-selector
+func (p *parser) classSelector() (*classSelector, error) {
+	t, err := p.next()
+	if err != nil {
+		return nil, err
 	}
-}
+	if !(t.typ == tokenDelim && t.s == ".") {
+		return nil, p.error(t, "expected '.'")
+	}
 
-type complexSelector struct {
-	compoundSelector *compoundSelector
-
-	combinator *combinator
-	next       *complexSelector
-}
-
-func (p *parser) complexSelector() (*complexSelector, error) {
-	return nil, nil
-}
-
-type compoundSelector struct {
-}
-
-type combinator struct {
+	t, err = p.next()
+	if err != nil {
+		return nil, err
+	}
+	if t.typ != tokenIdent {
+		return nil, p.error(t, "expect idententifier")
+	}
+	return &classSelector{t.s}, nil
 }

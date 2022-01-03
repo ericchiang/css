@@ -65,35 +65,77 @@ func (l *lexer) popN(n int) {
 
 type tokenType int
 
+// Create a shorter type aliases so links to csswg.org don't wrap.
+type tt = tokenType
+
 const (
-	tokenAtKeyword tokenType = iota
-	tokenBracketClose
-	tokenBracketOpen
-	tokenCDC
-	tokenCDO
-	tokenColon
-	tokenComma
-	tokenCurlyClose
-	tokenCurlyOpen
-	tokenDelim
-	tokenDimension
-	tokenEOF
-	tokenFunction
-	tokenHash
-	tokenNumber
-	tokenParenClose
-	tokenParenOpen
-	tokenPercent
-	tokenSemicolon
-	tokenString
-	tokenURL
-	tokenWhitespace
+	_                 tt = iota
+	tokenAtKeyword       // https://drafts.csswg.org/css-syntax-3/#typedef-at-keyword-token
+	tokenBracketClose    // https://drafts.csswg.org/css-syntax-3/#tokendef-close-square
+	tokenBracketOpen     // https://drafts.csswg.org/css-syntax-3/#tokendef-open-square
+	tokenCDC             // https://drafts.csswg.org/css-syntax-3/#typedef-cdc-token
+	tokenCDO             // https://drafts.csswg.org/css-syntax-3/#typedef-cdo-token
+	tokenColon           // https://drafts.csswg.org/css-syntax-3/#typedef-colon-token
+	tokenComma           // https://drafts.csswg.org/css-syntax-3/#typedef-comma-token
+	tokenCurlyClose      // https://drafts.csswg.org/css-syntax-3/#tokendef-close-curly
+	tokenCurlyOpen       // https://drafts.csswg.org/css-syntax-3/#tokendef-open-curly
+	tokenDelim           // https://drafts.csswg.org/css-syntax-3/#typedef-delim-token
+	tokenDimension       // https://drafts.csswg.org/css-syntax-3/#typedef-dimension-token
+	tokenEOF             // https://drafts.csswg.org/css-syntax-3/#typedef-eof-token
+	tokenFunction        // https://drafts.csswg.org/css-syntax-3/#typedef-function-token
+	tokenHash            // https://drafts.csswg.org/css-syntax-3/#typedef-hash-token
+	tokenIdent           // https://www.w3.org/TR/css-syntax-3/#typedef-ident-token
+	tokenNumber          // https://drafts.csswg.org/css-syntax-3/#typedef-number-token
+	tokenParenClose      // https://drafts.csswg.org/css-syntax-3/#tokendef-close-paren
+	tokenParenOpen       // https://drafts.csswg.org/css-syntax-3/#tokendef-open-paren
+	tokenPercent         // https://drafts.csswg.org/css-syntax-3/#typedef-percentage-token
+	tokenSemicolon       // https://drafts.csswg.org/css-syntax-3/#typedef-semicolon-token
+	tokenString          // https://drafts.csswg.org/css-syntax-3/#typedef-string-token
+	tokenURL             // https://drafts.csswg.org/css-syntax-3/#typedef-url-token
+	tokenWhitespace      // https://drafts.csswg.org/css-syntax-3/#typedef-whitespace-token
 )
+
+var tokenTypeString = map[tokenType]string{
+	tokenAtKeyword:    "<at-keyword-token>",
+	tokenBracketClose: "<]-token>",
+	tokenBracketOpen:  "<[-token>",
+	tokenCDC:          "<CDC-token>",
+	tokenCDO:          "<CDO-token>",
+	tokenColon:        "<colon-token>",
+	tokenComma:        "<comma-token>",
+	tokenCurlyClose:   "<}-token>",
+	tokenCurlyOpen:    "<{-token>",
+	tokenDelim:        "<delim-token>",
+	tokenDimension:    "<dimension-token>",
+	tokenEOF:          "<eof-token>",
+	tokenFunction:     "<function-token>",
+	tokenHash:         "<hash-token>",
+	tokenIdent:        "<ident-token>",
+	tokenNumber:       "<number-token>",
+	tokenParenClose:   "<)-token>",
+	tokenParenOpen:    "<(-token>",
+	tokenPercent:      "<percentage-token>",
+	tokenSemicolon:    "<semicolon-token>",
+	tokenString:       "<string-token>",
+	tokenURL:          "<url-token>",
+	tokenWhitespace:   "<whitespace-token>",
+}
+
+func (t tokenType) String() string {
+	if s, ok := tokenTypeString[t]; ok {
+		return s
+	}
+	return fmt.Sprintf("<0x%x-token>", int(t))
+}
 
 type token struct {
 	typ tokenType
 	s   string
 	pos int
+}
+
+func (t token) String() string {
+	return fmt.Sprintf("%s %q pos=%d", t.typ, t.s, t.pos)
 }
 
 type lexErr struct {
@@ -320,7 +362,7 @@ func (l *lexer) consumeIdentLikeToken() (token, error) {
 		return l.token(tokenFunction), nil
 	}
 
-	return l.token(tokenString), nil
+	return l.token(tokenIdent), nil
 }
 
 func (l *lexer) startsURL() bool {

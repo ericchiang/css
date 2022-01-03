@@ -197,7 +197,7 @@ func TestLexer(t *testing.T) {
 		{
 			`foo bar(`,
 			[]token{
-				tok(tokenString, "foo"),
+				tok(tokenIdent, "foo"),
 				tok(tokenWhitespace, " "),
 				tok(tokenFunction, "bar("),
 			},
@@ -209,7 +209,7 @@ func TestLexer(t *testing.T) {
 				tok(tokenWhitespace, " "),
 				tok(tokenURL, "url( foo )"),
 				tok(tokenWhitespace, " "),
-				tok(tokenString, "url"),
+				tok(tokenIdent, "url"),
 				tok(tokenWhitespace, " "),
 				tok(tokenFunction, "url("),
 				tok(tokenString, "\"foo\""),
@@ -220,6 +220,13 @@ func TestLexer(t *testing.T) {
 			`*`,
 			[]token{
 				tok(tokenDelim, "*"),
+			},
+		},
+		{
+			`.foo`,
+			[]token{
+				tok(tokenDelim, "."),
+				tok(tokenIdent, "foo"),
 			},
 		},
 	}
@@ -251,7 +258,7 @@ L:
 		}
 
 		if !reflect.DeepEqual(test.want, got) {
-			t.Errorf("tokenize selector %q\n got=%#v\nwant=%#v", test.s, got, test.want)
+			t.Errorf("tokenize selector %q\n got=%s\nwant=%s", test.s, got, test.want)
 		}
 	}
 }
