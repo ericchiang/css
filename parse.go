@@ -306,6 +306,7 @@ func (p *parser) typeSelector() (*typeSelector, bool, error) {
 }
 
 type subclassSelector struct {
+	pos                 int
 	idSelector          string
 	classSelector       string
 	attributeSelector   *attributeSelector
@@ -316,11 +317,11 @@ type subclassSelector struct {
 //                       <attribute-selector> | <pseudo-class-selector>
 // https://www.w3.org/TR/selectors-4/#typedef-subclass-selector
 func (p *parser) subclassSelector() (*subclassSelector, bool, error) {
-	ss := &subclassSelector{}
 	t, err := p.peek()
 	if err != nil {
 		return nil, false, err
 	}
+	ss := &subclassSelector{pos: t.pos}
 	// <id-selector> = <hash-token>
 	if t.typ == tokenHash {
 		p.next()

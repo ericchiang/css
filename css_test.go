@@ -30,6 +30,29 @@ func TestSelector(t *testing.T) {
 			`<h1><div></div><div></div></h1>`,
 			[]string{`<div></div>`, `<div></div>`},
 		},
+		{
+			".foo",
+			`<h1><h2 class="foo"></h2><div class="foo"></div><div id="foo"></div></h1>`,
+			[]string{
+				`<h2 class="foo"></h2>`,
+				`<div class="foo"></div>`,
+			},
+		},
+		{
+			"div.foo",
+			`<h1><h2 class="foo"></h2><div class="foo"></div><div id="foo"></div></h1>`,
+			[]string{`<div class="foo"></div>`},
+		},
+		{
+			"#foo",
+			`<h1><h2 class="foo"></h2><div class="foo"></div><div id="foo"></div></h1>`,
+			[]string{`<div id="foo"></div>`},
+		},
+		{
+			"div#foo",
+			`<h1><h2 class="foo"></h2><div class="foo"></div><div id="foo"></div></h1>`,
+			[]string{`<div id="foo"></div>`},
+		},
 	}
 	for _, test := range tests {
 		s, err := Parse(test.sel)

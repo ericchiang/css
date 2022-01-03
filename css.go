@@ -140,14 +140,22 @@ func (c *compiler) compile(s *complexSelector) *selector {
 }
 
 type compoundSelectorMatcher struct {
-	m *typeSelectorMatcher
+	m   *typeSelectorMatcher
+	scm []subclassSelectorMatcher
 }
 
 func (c *compoundSelectorMatcher) match(n *html.Node) bool {
 	if c.m != nil {
-		return c.m.match(n)
+		if !c.m.match(n) {
+			return false
+		}
 	}
-	return false
+	for _, m := range c.scm {
+		if !m.match(n) {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *compiler) compoundSelector(s *compoundSelector) *compoundSelectorMatcher {
@@ -155,13 +163,58 @@ func (c *compiler) compoundSelector(s *compoundSelector) *compoundSelectorMatche
 	if s.typeSelector != nil {
 		m.m = c.typeSelector(s.typeSelector)
 	}
-	if len(s.subClasses) != 0 {
-		if c.errorf(s.pos, "subclass selector not supported") {
-			return nil
+	for _, sc := range s.subClasses {
+		scm := c.subclassSelector(&sc)
+		if scm != nil {
+			m.scm = append(m.scm, *scm)
 		}
 	}
 	if len(s.pseudoSelectors) != 0 {
 		if c.errorf(s.pos, "pseudo selector not supported") {
+			return nil
+		}
+	}
+	return m
+}
+
+type subclassSelectorMatcher struct {
+	idSelector    string
+	classSelector string
+}
+
+func (s *subclassSelectorMatcher) match(n *html.Node) bool {
+	if s.idSelector != "" {
+		for _, a := range n.Attr {
+			if a.Key == "id" && a.Val == s.idSelector {
+				return true
+			}
+		}
+		return false
+	}
+
+	if s.classSelector != "" {
+		for _, a := range n.Attr {
+			if a.Key == "class" && a.Val == s.classSelector {
+				return true
+			}
+		}
+		return false
+	}
+	return false
+}
+
+func (c *compiler) subclassSelector(s *subclassSelector) *subclassSelectorMatcher {
+	m := &subclassSelectorMatcher{
+		idSelector:    s.idSelector,
+		classSelector: s.classSelector,
+	}
+	if s.attributeSelector != nil {
+		if c.errorf(s.pos, "attribute selector not supported") {
+			return nil
+		}
+	}
+	if s.pseudoClassSelector != nil {
+		if c.errorf(s.pos, "pseudo class selector not supported") {
 			return nil
 		}
 	}
