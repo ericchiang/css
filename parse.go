@@ -91,6 +91,7 @@ func (p *parser) parse() ([]complexSelector, error) {
 }
 
 type complexSelector struct {
+	pos        int
 	sel        compoundSelector
 	combinator string
 	next       *complexSelector
@@ -102,7 +103,7 @@ func (p *parser) complexSelector() (*complexSelector, error) {
 		return nil, err
 	}
 
-	sel := &complexSelector{}
+	sel := &complexSelector{pos: t.pos}
 	cs, ok, err := p.compoundSelector()
 	if err != nil {
 		return nil, err
@@ -164,13 +165,14 @@ func (p *parser) complexSelector() (*complexSelector, error) {
 			}
 			return sel, nil
 		}
-		next := &complexSelector{sel: *s}
+		next := &complexSelector{pos: s.pos, sel: *s}
 		last.next = next
 		last = next
 	}
 }
 
 type compoundSelector struct {
+	pos             int
 	typeSelector    *typeSelector // may be nil
 	subClasses      []subclassSelector
 	pseudoSelectors []pseudoSelector
@@ -181,8 +183,12 @@ type compoundSelector struct {
 //
 // Whitespace is disallowed between top level elements.
 func (p *parser) compoundSelector() (*compoundSelector, bool, error) {
+	t, err := p.peek()
+	if err != nil {
+		return nil, false, err
+	}
 	found := false
-	cs := &compoundSelector{}
+	cs := &compoundSelector{pos: t.pos}
 	ts, ok, err := p.typeSelector()
 	if err != nil {
 		return nil, false, err
