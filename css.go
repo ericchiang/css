@@ -1,6 +1,9 @@
 package css
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type parseErr struct {
 	msg string
@@ -8,7 +11,7 @@ type parseErr struct {
 }
 
 func (p *parseErr) Error() string {
-	return p.msg
+	return fmt.Sprintf("consuming %s: %s", p.t, p.msg)
 }
 
 type parser struct {
@@ -61,6 +64,80 @@ func (p *parser) next() (token, error) {
 
 func (p *parser) errorf(t token, msg string, v ...interface{}) error {
 	return &parseErr{fmt.Sprintf(msg, v...), t}
+}
+
+type subclassSelector struct {
+	idSelector          string
+	classSelector       string
+	attributeSelector   *attributeSelector
+	pseudoClassSelector *pseudoClassSelector
+}
+
+// <subclass-selector> = <id-selector> | <class-selector> |
+//                       <attribute-selector> | <pseudo-class-selector>
+// https://www.w3.org/TR/selectors-4/#typedef-subclass-selector
+func (p *parser) subclassSelector() (*subclassSelector, bool, error) {
+	ss := &subclassSelector{}
+	t, err := p.peek()
+	if err != nil {
+		return nil, false, err
+	}
+	// <id-selector> = <hash-token>
+	if t.typ == tokenHash {
+		p.next()
+		ss.idSelector = strings.TrimPrefix(t.s, "#")
+		return ss, true, nil
+	}
+
+	// <class-selector> = '.' <ident-token>
+	if t.isDelim(".") {
+		p.next()
+		t, err := p.next()
+		if err != nil {
+			return nil, false, err
+		}
+		if t.typ != tokenIdent {
+			return nil, false, p.errorf(t, "expected identifier")
+		}
+		ss.classSelector = strings.TrimPrefix(t.s, ".")
+		return ss, true, nil
+	}
+
+	// <attribute-selector> = '[' <wq-name> ']' | ...
+	if t.typ == tokenBracketOpen {
+		a, err := p.attributeSelector()
+		if err != nil {
+			return nil, false, err
+		}
+		ss.attributeSelector = a
+		return ss, true, nil
+	}
+
+	if t.typ != tokenColon {
+		return nil, false, nil
+	}
+
+	// Maybe a <pseudo-class-selector>? When parsing <subclass-selector> we could
+	// potentially match a <pseudo-element-selector> instead. So if the next
+	// token is ':', assume we've hit a <pseudo-element-selector> and stop.
+	//
+	// <compound-selector> = [ <type-selector>? <subclass-selector>*
+	//                       [ <pseudo-element-selector> <pseudo-class-selector>* ]* ]!
+
+	pt, err := p.peekN(1)
+	if err != nil {
+		return nil, false, err
+	}
+	if pt.typ == tokenColon {
+		// Found a <pseudo-element-selector>.
+		return nil, false, nil
+	}
+	pcs, err := p.pseudoClassSelector()
+	if err != nil {
+		return nil, false, err
+	}
+	ss.pseudoClassSelector = pcs
+	return ss, true, nil
 }
 
 type pseudoClassSelector struct {
@@ -141,30 +218,6 @@ func (p *parser) any(until tokenType) ([]token, error) {
 		}
 		tokens = append(tokens, t)
 	}
-}
-
-type classSelector struct {
-	class string
-}
-
-// https://www.w3.org/TR/selectors-4/#typedef-class-selector
-func (p *parser) classSelector() (*classSelector, error) {
-	t, err := p.next()
-	if err != nil {
-		return nil, err
-	}
-	if !t.isDelim(".") {
-		return nil, p.errorf(t, "expected '.'")
-	}
-
-	t, err = p.next()
-	if err != nil {
-		return nil, err
-	}
-	if t.typ != tokenIdent {
-		return nil, p.errorf(t, "expect idententifier")
-	}
-	return &classSelector{t.s}, nil
 }
 
 func (p *parser) skipWhitespace() {
@@ -250,10 +303,10 @@ func (p *parser) attributeSelector() (*attributeSelector, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !(strOrIdent.typ == tokenString || strOrIdent.typ != tokenIdent) {
-		return nil, p.errorf(t, "expected identifier or string")
+	if !(strOrIdent.typ == tokenString || strOrIdent.typ == tokenIdent) {
+		return nil, p.errorf(strOrIdent, "expected identifier or string")
 	}
-	at.val = t.s
+	at.val = strOrIdent.s
 
 	p.skipWhitespace()
 

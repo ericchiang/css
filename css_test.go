@@ -12,12 +12,6 @@ type testMethod struct {
 }
 
 func TestParser(t *testing.T) {
-	parseClassSel := testMethod{
-		name: "classSelector()",
-		fn: func(p *parser) (interface{}, error) {
-			return p.classSelector()
-		},
-	}
 	parsePseudoClass := testMethod{
 		name: "pseudoClassSelector()",
 		fn: func(p *parser) (interface{}, error) {
@@ -36,6 +30,19 @@ func TestParser(t *testing.T) {
 			return p.attributeSelector()
 		},
 	}
+	parseSubclassSel := testMethod{
+		name: "subclassSelector()",
+		fn: func(p *parser) (interface{}, error) {
+			ss, ok, err := p.subclassSelector()
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				return false, nil
+			}
+			return ss, nil
+		},
+	}
 
 	tests := []struct {
 		method     testMethod
@@ -43,9 +50,6 @@ func TestParser(t *testing.T) {
 		want       interface{}
 		wantErrPos int
 	}{
-		{parseClassSel, ".foo", &classSelector{"foo"}, -1},
-		{parseClassSel, ".bar()", nil, 1},
-		{parseClassSel, "foo", nil, 0},
 		{parsePseudoClass, ":foo", &pseudoClassSelector{"foo", "", nil}, -1},
 		{parsePseudoClass, ": foo", nil, 1}, // https://www.w3.org/TR/selectors-4/#white-space
 		{parsePseudoClass, ":foo()", &pseudoClassSelector{"", "foo(", nil}, -1},
@@ -87,6 +91,17 @@ func TestParser(t *testing.T) {
 		{parseAttrSel, "[foo^=bar]", &attributeSelector{
 			&wqName{false, "", "foo"}, "^", "bar", false,
 		}, -1},
+		{parseSubclassSel, "", false, -1},
+		{parseSubclassSel, "#foo", &subclassSelector{idSelector: "foo"}, -1},
+		{parseSubclassSel, ".foo", &subclassSelector{classSelector: "foo"}, -1},
+		{parseSubclassSel, ".foo()", nil, 1},
+		{parseSubclassSel, "[foo=bar]", &subclassSelector{
+			attributeSelector: &attributeSelector{&wqName{false, "", "foo"}, "", "bar", false},
+		}, -1},
+		{parseSubclassSel, ":foo", &subclassSelector{
+			pseudoClassSelector: &pseudoClassSelector{"foo", "", nil},
+		}, -1},
+		{parseSubclassSel, "::foo", false, -1},
 	}
 	for _, test := range tests {
 		t.Run(test.method.name+test.s, func(t *testing.T) {
