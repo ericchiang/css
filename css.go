@@ -35,18 +35,21 @@ type Selector struct {
 func (s *Selector) Select(n *html.Node) []*html.Node {
 	selected := []*html.Node{}
 	for _, sel := range s.s {
-		selected = append(selected, match(n, sel.match)...)
+		selected = append(selected, sel.find(n)...)
 	}
 	return selected
 }
 
-func match(n *html.Node, fn func(n *html.Node) bool) []*html.Node {
-	if fn(n) {
-		return []*html.Node{n}
-	}
+func findAll(n *html.Node, fn func(n *html.Node) bool) []*html.Node {
 	var m []*html.Node
+	if fn(n) {
+		m = append(m, n)
+	}
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		m = append(m, match(c, fn)...)
+		if c.Type != html.ElementNode {
+			continue
+		}
+		m = append(m, findAll(c, fn)...)
 	}
 	return m
 }
@@ -121,21 +124,137 @@ func (c *compiler) errorf(pos int, msg string, v ...interface{}) bool {
 
 type selector struct {
 	m *compoundSelectorMatcher
+
+	combinators []func(n *html.Node) []*html.Node
 }
 
-func (s selector) match(n *html.Node) bool {
-	if s.m != nil {
-		return s.m.match(n)
+func (s selector) find(n *html.Node) []*html.Node {
+	nodes := findAll(n, s.m.match)
+	for _, combinator := range s.combinators {
+		var ns []*html.Node
+		for _, n := range nodes {
+			ns = append(ns, combinator(n)...)
+		}
+		nodes = ns
 	}
-	return false
+	return nodes
+}
+
+type descendantCombinator struct {
+	m *compoundSelectorMatcher
+}
+
+func (c *descendantCombinator) find(n *html.Node) []*html.Node {
+	var nodes []*html.Node
+	for n := n.FirstChild; n != nil; n = n.NextSibling {
+		if n.Type != html.ElementNode {
+			continue
+		}
+		nodes = append(nodes, findAll(n, c.m.match)...)
+	}
+	return nodes
+}
+
+type childCombinator struct {
+	m *compoundSelectorMatcher
+}
+
+func (c *childCombinator) find(n *html.Node) []*html.Node {
+	var nodes []*html.Node
+	for n := n.FirstChild; n != nil; n = n.NextSibling {
+		if n.Type != html.ElementNode {
+			continue
+		}
+		if c.m.match(n) {
+			nodes = append(nodes, n)
+		}
+	}
+	return nodes
+}
+
+type adjacentCombinator struct {
+	m *compoundSelectorMatcher
+}
+
+func (c *adjacentCombinator) find(n *html.Node) []*html.Node {
+	var (
+		nodes []*html.Node
+		prev  *html.Node
+		next  *html.Node
+	)
+	for prev = n.PrevSibling; prev != nil; prev = prev.PrevSibling {
+		if prev.Type == html.ElementNode {
+			break
+		}
+	}
+	for next = n.NextSibling; next != nil; next = next.NextSibling {
+		if next.Type == html.ElementNode {
+			break
+		}
+	}
+	if prev != nil && c.m.match(prev) {
+		nodes = append(nodes, prev)
+	}
+	if next != nil && c.m.match(next) {
+		nodes = append(nodes, next)
+	}
+	return nodes
+}
+
+type siblingCombinator struct {
+	m *compoundSelectorMatcher
+}
+
+func (c *siblingCombinator) find(n *html.Node) []*html.Node {
+	var nodes []*html.Node
+	for n := n.PrevSibling; n != nil; n = n.PrevSibling {
+		if n.Type != html.ElementNode {
+			continue
+		}
+		if c.m.match(n) {
+			nodes = append(nodes, n)
+		}
+	}
+	for n := n.NextSibling; n != nil; n = n.NextSibling {
+		if n.Type != html.ElementNode {
+			continue
+		}
+		if c.m.match(n) {
+			nodes = append(nodes, n)
+		}
+	}
+	return nodes
 }
 
 func (c *compiler) compile(s *complexSelector) *selector {
-	m := &selector{c.compoundSelector(&s.sel)}
-	if s.combinator != "" {
-		if c.errorf(s.pos, "combinator not supported") {
-			return nil
+	m := &selector{
+		m: c.compoundSelector(&s.sel),
+	}
+	curr := s
+	for {
+		if curr.next == nil {
+			return m
 		}
+		sel := c.compoundSelector(&curr.next.sel)
+		combinator := curr.combinator
+
+		curr = curr.next
+
+		var fn func(n *html.Node) []*html.Node
+		switch combinator {
+		case "":
+			fn = (&descendantCombinator{sel}).find
+		case ">":
+			fn = (&childCombinator{sel}).find
+		case "+":
+			fn = (&adjacentCombinator{sel}).find
+		case "~":
+			fn = (&siblingCombinator{sel}).find
+		default:
+			c.errorf(curr.pos, "unexpected combinator: %s", combinator)
+			continue
+		}
+		m.combinators = append(m.combinators, fn)
 	}
 	return m
 }

@@ -34,6 +34,36 @@ func TestParse(t *testing.T) {
 				},
 			},
 		}},
+		{"foo bar", []complexSelector{
+			{
+				sel: compoundSelector{
+					typeSelector: &typeSelector{pos: 0, value: "foo"},
+				},
+				combinator: "",
+				next: &complexSelector{
+					pos: 4,
+					sel: compoundSelector{
+						pos:          4,
+						typeSelector: &typeSelector{pos: 4, value: "bar"},
+					},
+				},
+			},
+		}},
+		{"foo > bar", []complexSelector{
+			{
+				sel: compoundSelector{
+					typeSelector: &typeSelector{pos: 0, value: "foo"},
+				},
+				combinator: ">",
+				next: &complexSelector{
+					pos: 6,
+					sel: compoundSelector{
+						pos:          6,
+						typeSelector: &typeSelector{pos: 6, value: "bar"},
+					},
+				},
+			},
+		}},
 		{"foo, bar", []complexSelector{
 			{
 				sel: compoundSelector{

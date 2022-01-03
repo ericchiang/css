@@ -23,7 +23,10 @@ func TestSelector(t *testing.T) {
 		{
 			"div",
 			`<h1><div><div></div></div></h1>`,
-			[]string{`<div><div></div></div>`},
+			[]string{
+				`<div><div></div></div>`,
+				`<div></div>`,
+			},
 		},
 		{
 			"div",
@@ -81,7 +84,10 @@ func TestSelector(t *testing.T) {
 		{
 			"svg|*",
 			`<div><svg xmlns="http://www.w3.org/2000/svg"><a class="foo"></a></svg></div>`,
-			[]string{`<svg xmlns="http://www.w3.org/2000/svg"><a class="foo"></a></svg>`},
+			[]string{
+				`<svg xmlns="http://www.w3.org/2000/svg"><a class="foo"></a></svg>`,
+				`<a class="foo"></a>`,
+			},
 		},
 		{
 			"div[class=foo]",
@@ -145,6 +151,80 @@ func TestSelector(t *testing.T) {
 				`<div class="Foo-bar"></div>`,
 			},
 		},
+		{
+			"div a",
+			`
+			<h1>
+				<div>
+					<a href="http://bar"></a>
+				</div>
+				<div>
+					<div>
+						<a href="http://foo"></a>
+					</div>
+				</div>
+				<a href="http://spam"></a>
+			</h1>
+			`,
+			[]string{
+				`<a href="http://bar"></a>`,
+				`<a href="http://foo"></a>`,
+				`<a href="http://foo"></a>`,
+			},
+		},
+		{
+			"div > a",
+			`
+			<h1>
+				<div>
+					<a href="http://bar"></a>
+				</div>
+				<div>
+					<div>
+						<a href="http://foo"></a>
+					</div>
+				</div>
+				<a href="http://spam"></a>
+			</h1>
+			`,
+			[]string{
+				`<a href="http://bar"></a>`,
+				`<a href="http://foo"></a>`,
+			},
+		},
+		{
+			"div + a",
+			`
+			<h1>
+				<div>
+					<a href="http://bar"></a>
+				</div>
+				<a href="http://spam"></a>
+				<p></p>
+				<a href="http://foo"></a>
+			</h1>
+			`,
+			[]string{
+				`<a href="http://spam"></a>`,
+			},
+		},
+		{
+			"div ~ a",
+			`
+			<h1>
+				<div>
+					<a href="http://bar"></a>
+				</div>
+				<a href="http://spam"></a>
+				<p></p>
+				<a href="http://foo"></a>
+			</h1>
+			`,
+			[]string{
+				`<a href="http://spam"></a>`,
+				`<a href="http://foo"></a>`,
+			},
+		},
 	}
 	for _, test := range tests {
 		s, err := Parse(test.sel)
@@ -171,13 +251,13 @@ func TestSelector(t *testing.T) {
 		for _, n := range s.Select(root) {
 			b := &bytes.Buffer{}
 			if err := html.Render(b, n); err != nil {
-				t.Errorf("Failed to render result of selecting %q from %q: %v", test.sel, in, err)
+				t.Errorf("Failed to render result of selecting %q from %s: %v", test.sel, in, err)
 				continue
 			}
 			got = append(got, b.String())
 		}
 		if diff := cmp.Diff(test.want, got); diff != "" {
-			t.Errorf("Selecting %q from %q returned diff (-want, +got): %s", test.sel, in, diff)
+			t.Errorf("Selecting %q from %s returned diff (-want, +got): %s", test.sel, in, diff)
 		}
 	}
 }
