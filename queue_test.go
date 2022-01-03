@@ -3,10 +3,10 @@ package css
 import "testing"
 
 func TestQueue(t *testing.T) {
-	t1 := token{tokenDelim, "*", 0}
-	t2 := token{tokenIdent, "foo", 0}
-	t3 := token{tokenIdent, "bar", 0}
-	t4 := token{tokenIdent, "spam", 0}
+	t1 := token{tokenDelim, "*", "*", 0}
+	t2 := token{tokenIdent, "foo", "foo", 0}
+	t3 := token{tokenIdent, "bar", "bar", 0}
+	t4 := token{tokenIdent, "spam", "spam", 0}
 
 	_, _ = t3, t4
 

@@ -5,8 +5,14 @@ import (
 	"testing"
 )
 
-func tok(typ tokenType, s string) token {
-	return token{typ: typ, s: s}
+func tok(typ tokenType, s ...string) token {
+	switch len(s) {
+	case 1:
+		return token{typ: typ, raw: s[0], s: s[0]}
+	case 2:
+		return token{typ: typ, raw: s[0], s: s[1]}
+	}
+	panic("invalid number of arguments")
 }
 
 func TestLexer(t *testing.T) {
@@ -30,15 +36,15 @@ func TestLexer(t *testing.T) {
 			" \"hello\" ",
 			[]token{
 				tok(tokenWhitespace, " "),
-				tok(tokenString, "\"hello\""),
+				tok(tokenString, "\"hello\"", "hello"),
 				tok(tokenWhitespace, " "),
 			},
 		},
 		{
-			` "\t" `,
+			` "\{" `,
 			[]token{
 				tok(tokenWhitespace, " "),
-				tok(tokenString, `"\t"`),
+				tok(tokenString, `"\{"`, "{"),
 				tok(tokenWhitespace, " "),
 			},
 		},
@@ -46,7 +52,7 @@ func TestLexer(t *testing.T) {
 			` "\0af" `,
 			[]token{
 				tok(tokenWhitespace, " "),
-				tok(tokenString, `"\0af"`),
+				tok(tokenString, `"\0af"`, "¯"),
 				tok(tokenWhitespace, " "),
 			},
 		},
@@ -54,7 +60,7 @@ func TestLexer(t *testing.T) {
 			` "\0a f" `,
 			[]token{
 				tok(tokenWhitespace, " "),
-				tok(tokenString, `"\0a f"`),
+				tok(tokenString, `"\0a f"`, "¯"),
 				tok(tokenWhitespace, " "),
 			},
 		},
@@ -63,7 +69,7 @@ func TestLexer(t *testing.T) {
 			[]token{
 				tok(tokenDelim, "#"),
 				tok(tokenWhitespace, " "),
-				tok(tokenString, `"foo"`),
+				tok(tokenString, `"foo"`, "foo"),
 			},
 		},
 		{
@@ -75,7 +81,7 @@ func TestLexer(t *testing.T) {
 		{
 			`#\0100`,
 			[]token{
-				tok(tokenHash, `#\0100`),
+				tok(tokenHash, `#\0100`, "#Ā"),
 			},
 		},
 		{
@@ -212,7 +218,7 @@ func TestLexer(t *testing.T) {
 				tok(tokenIdent, "url"),
 				tok(tokenWhitespace, " "),
 				tok(tokenFunction, "url("),
-				tok(tokenString, "\"foo\""),
+				tok(tokenString, "\"foo\"", "foo"),
 				tok(tokenParenClose, ")"),
 			},
 		},
@@ -238,7 +244,7 @@ L:
 		pos := 0
 		for i, t := range test.want {
 			t.pos = pos
-			pos = t.pos + len(t.s)
+			pos = t.pos + len(t.raw)
 			test.want[i] = t
 		}
 
@@ -257,8 +263,8 @@ L:
 			}
 		}
 
-		if !reflect.DeepEqual(test.want, got) {
-			t.Errorf("tokenize selector %q\n got=%s\nwant=%s", test.s, got, test.want)
+		if diff := cmpDiff(test.want, got); diff != "" {
+			t.Errorf("tokenize selector %q returned diff (-want, +got): %s", test.s, diff)
 		}
 	}
 }

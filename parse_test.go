@@ -153,15 +153,15 @@ func TestParse(t *testing.T) {
 							element: pseudoClassSelector{
 								function: "myfunc(",
 								args: []token{
-									{tokenIdent, "a", 12},
-									{tokenComma, ",", 13},
-									{tokenWhitespace, " ", 14},
-									{tokenIdent, "b", 15},
-									{tokenComma, ",", 16},
-									{tokenWhitespace, " ", 17},
-									{tokenParenOpen, "(", 18},
-									{tokenIdent, "c", 19},
-									{tokenParenClose, ")", 20},
+									{tokenIdent, "a", "a", 12},
+									{tokenComma, ",", ",", 13},
+									{tokenWhitespace, " ", " ", 14},
+									{tokenIdent, "b", "b", 15},
+									{tokenComma, ",", ",", 16},
+									{tokenWhitespace, " ", " ", 17},
+									{tokenParenOpen, "(", "(", 18},
+									{tokenIdent, "c", "c", 19},
+									{tokenParenClose, ")", ")", 20},
 								},
 							},
 						},
@@ -244,13 +244,13 @@ func TestSubParser(t *testing.T) {
 		{parsePseudoClass, ": foo", nil, 1}, // https://www.w3.org/TR/selectors-4/#white-space
 		{parsePseudoClass, ":foo()", &pseudoClassSelector{"", "foo(", nil}, -1},
 		{parsePseudoClass, ":foo(a)", &pseudoClassSelector{"", "foo(", []token{
-			token{tokenIdent, "a", 5},
+			token{tokenIdent, "a", "a", 5},
 		}}, -1},
 		{parsePseudoClass, ":foo(a, b)", &pseudoClassSelector{"", "foo(", []token{
-			token{tokenIdent, "a", 5},
-			token{tokenComma, ",", 6},
-			token{tokenWhitespace, " ", 7},
-			token{tokenIdent, "b", 8},
+			token{tokenIdent, "a", "a", 5},
+			token{tokenComma, ",", ",", 6},
+			token{tokenWhitespace, " ", " ", 7},
+			token{tokenIdent, "b", "b", 8},
 		}}, -1},
 		{parseWQName, "foo", &wqName{false, "", "foo"}, -1},
 		{parseWQName, "foo|bar", &wqName{true, "foo", "bar"}, -1},
@@ -274,13 +274,13 @@ func TestSubParser(t *testing.T) {
 			&wqName{false, "", "foo"}, "", "", false,
 		}, -1},
 		{parseAttrSel, "[ foo = \"bar\" ]", &attributeSelector{
-			&wqName{false, "", "foo"}, "", "\"bar\"", false,
+			&wqName{false, "", "foo"}, "", "bar", false,
 		}, -1},
 		{parseAttrSel, "[foo=\"bar\"]", &attributeSelector{
-			&wqName{false, "", "foo"}, "", "\"bar\"", false,
+			&wqName{false, "", "foo"}, "", "bar", false,
 		}, -1},
 		{parseAttrSel, "[*|foo=\"bar\"]", &attributeSelector{
-			&wqName{true, "*", "foo"}, "", "\"bar\"", false,
+			&wqName{true, "*", "foo"}, "", "bar", false,
 		}, -1},
 		{parseAttrSel, "[*|foo=bar]", &attributeSelector{
 			&wqName{true, "*", "foo"}, "", "bar", false,

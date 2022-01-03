@@ -2,6 +2,8 @@ package css
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -130,6 +132,7 @@ func (t tokenType) String() string {
 
 type token struct {
 	typ tokenType
+	raw string
 	s   string
 	pos int
 }
@@ -157,7 +160,17 @@ func (l *lexer) errorf(format string, v ...interface{}) error {
 }
 
 func (l *lexer) token(typ tokenType) token {
-	t := token{typ, l.s[l.last:l.pos], l.last}
+	s := l.s[l.last:l.pos]
+	t := token{typ, s, s, l.last}
+	l.last = l.pos
+	return t
+}
+
+// tokenWithString allows tokens that parse escape sequences to override the
+// string associated with the token.
+func (l *lexer) tokenWithString(typ tokenType, s string) token {
+	raw := l.s[l.last:l.pos]
+	t := token{typ, raw, s, l.last}
 	l.last = l.pos
 	return t
 }
@@ -175,12 +188,12 @@ func (l *lexer) next() (token, error) {
 
 	if isDigit(r) {
 		l.push(r)
-		return l.consumeNumericToken()
+		return l.numericToken()
 	}
 
 	if isNameStart(r) {
 		l.push(r)
-		return l.consumeIdentLikeToken()
+		return l.identLikeToken()
 	}
 
 	switch r {
@@ -190,10 +203,12 @@ func (l *lexer) next() (token, error) {
 		return l.token(tokenEOF), nil
 	case '#':
 		if isName(l.peek()) || isValidEscape(l.peek(), l.peekN(1)) {
-			if err := l.consumeName(); err != nil {
+			var b strings.Builder
+			b.WriteRune(r)
+			if err := l.consumeName(&b); err != nil {
 				return token{}, err
 			}
-			return l.token(tokenHash), nil
+			return l.tokenWithString(tokenHash, b.String()), nil
 		}
 		return l.token(tokenDelim), nil
 	case '(':
@@ -203,7 +218,7 @@ func (l *lexer) next() (token, error) {
 	case '+':
 		if isNumStart(r, l.peek(), l.peekN(1)) {
 			l.push(r)
-			return l.consumeNumericToken()
+			return l.numericToken()
 		}
 		return l.token(tokenDelim), nil
 	case ',':
@@ -211,7 +226,7 @@ func (l *lexer) next() (token, error) {
 	case '-':
 		if isNumStart(r, l.peek(), l.peekN(1)) {
 			l.push(r)
-			return l.consumeNumericToken()
+			return l.numericToken()
 		}
 		if l.peek() == '-' && l.peekN(1) == '>' {
 			l.popN(2)
@@ -221,7 +236,7 @@ func (l *lexer) next() (token, error) {
 	case '.':
 		if isNumStart(r, l.peek(), l.peekN(1)) {
 			l.push(r)
-			return l.consumeNumericToken()
+			return l.numericToken()
 		}
 		return l.token(tokenDelim), nil
 	case ':':
@@ -236,10 +251,12 @@ func (l *lexer) next() (token, error) {
 		return l.token(tokenDelim), nil
 	case '@':
 		if isIdentStart(l.peek(), l.peekN(1), l.peekN(2)) {
-			if err := l.consumeName(); err != nil {
+			var b strings.Builder
+			b.WriteRune(r)
+			if err := l.consumeName(&b); err != nil {
 				return token{}, err
 			}
-			return l.token(tokenAtKeyword), nil
+			return l.tokenWithString(tokenAtKeyword, b.String()), nil
 		}
 		return l.token(tokenDelim), nil
 	case '[':
@@ -249,7 +266,7 @@ func (l *lexer) next() (token, error) {
 			return token{}, l.errorf("invalid escape character")
 		}
 		l.push(r)
-		return l.consumeIdentLikeToken()
+		return l.identLikeToken()
 	case ']':
 		return l.token(tokenBracketClose), nil
 	case '{':
@@ -262,10 +279,11 @@ func (l *lexer) next() (token, error) {
 
 // https://www.w3.org/TR/css-syntax-3/#consume-a-string-token
 func (l *lexer) string(quote rune) (token, error) {
+	var b strings.Builder
 	for {
-		switch l.pop() {
+		switch r := l.pop(); r {
 		case quote:
-			return l.token(tokenString), nil
+			return l.tokenWithString(tokenString, b.String()), nil
 		case eof:
 			return token{}, l.errorf("unexpected eof parsing string")
 		case '\n':
@@ -276,23 +294,28 @@ func (l *lexer) string(quote rune) (token, error) {
 			case '\n':
 				return token{}, l.errorf("unexpected newline after '\\' parsing string")
 			default:
-				if err := l.consumeEscape(); err != nil {
+				if err := l.consumeEscape(&b); err != nil {
 					return token{}, l.errorf("parsing string: %v", err)
 				}
 			}
+		default:
+			b.WriteRune(r)
 		}
 	}
 }
 
 // https://www.w3.org/TR/css-syntax-3/#consume-an-escaped-code-point
-func (l *lexer) consumeEscape() error {
+func (l *lexer) consumeEscape(b *strings.Builder) error {
 	r := l.pop()
 	if r == eof {
 		return l.errorf("unexpected newline after escape sequence")
 	}
 	if !isHex(r) {
+		b.WriteRune(r)
 		return nil
 	}
+
+	var hexRune strings.Builder
 	n := 0
 	for {
 		r := l.peek()
@@ -302,6 +325,7 @@ func (l *lexer) consumeEscape() error {
 			if n > 5 {
 				return l.errorf("too many hex digits consuming escape sequence")
 			}
+			hexRune.WriteRune(r)
 			continue
 		}
 
@@ -309,22 +333,29 @@ func (l *lexer) consumeEscape() error {
 			l.pop()
 			continue
 		}
+
+		s := hexRune.String()
+		val, err := strconv.ParseUint(s, 16, 64)
+		if err != nil {
+			return l.errorf("failed to parse hex escape sequence %s: %v", s, err)
+		}
+		b.WriteRune(rune(val))
 		return nil
 	}
 }
 
 // https://www.w3.org/TR/css-syntax-3/#consume-a-name
-func (l *lexer) consumeName() error {
+func (l *lexer) consumeName(b *strings.Builder) error {
 	for {
 		r := l.peek()
 		if isName(r) {
-			l.pop()
+			b.WriteRune(l.pop())
 			continue
 		}
 
 		if isValidEscape(r, l.peekN(1)) {
 			l.pop()
-			if err := l.consumeEscape(); err != nil {
+			if err := l.consumeEscape(b); err != nil {
 				return err
 			}
 			continue
@@ -334,42 +365,44 @@ func (l *lexer) consumeName() error {
 }
 
 // https://www.w3.org/TR/css-syntax-3/#consume-a-numeric-token
-func (l *lexer) consumeNumericToken() (token, error) {
-	l.consumeNumber()
+func (l *lexer) numericToken() (token, error) {
+	var b strings.Builder
+	l.consumeNumber(&b)
 
 	if isIdentStart(l.peek(), l.peekN(1), l.peekN(2)) {
-		if err := l.consumeName(); err != nil {
+		if err := l.consumeName(&b); err != nil {
 			return token{}, err
 		}
 		return l.token(tokenDimension), nil
 	}
 
 	if l.peek() == '%' {
-		l.pop()
-		return l.token(tokenPercent), nil
+		b.WriteRune(l.pop())
+		return l.tokenWithString(tokenPercent, b.String()), nil
 	}
-	return l.token(tokenNumber), nil
+	return l.tokenWithString(tokenNumber, b.String()), nil
 }
 
 // https://www.w3.org/TR/css-syntax-3/#consume-an-ident-like-token
-func (l *lexer) consumeIdentLikeToken() (token, error) {
-	if l.startsURL() {
-		return l.consumeURL()
+func (l *lexer) identLikeToken() (token, error) {
+	var b strings.Builder
+	if l.startsURL(&b) {
+		return l.consumeURL(&b)
 	}
 
-	if err := l.consumeName(); err != nil {
+	if err := l.consumeName(&b); err != nil {
 		return token{}, err
 	}
 
 	if l.peek() == '(' {
-		l.pop()
-		return l.token(tokenFunction), nil
+		b.WriteRune(l.pop())
+		return l.tokenWithString(tokenFunction, b.String()), nil
 	}
 
-	return l.token(tokenIdent), nil
+	return l.tokenWithString(tokenIdent, b.String()), nil
 }
 
-func (l *lexer) startsURL() bool {
+func (l *lexer) startsURL(b *strings.Builder) bool {
 	if !(l.peek() == 'u' || l.peek() == 'U') {
 		return false
 	}
@@ -403,30 +436,35 @@ func (l *lexer) startsURL() bool {
 		return false
 	}
 
-	l.popN(4)
+	for i := 0; i < 4; i++ {
+		b.WriteRune(l.pop())
+	}
 	return true
 }
 
 // https://www.w3.org/TR/css-syntax-3/#consume-a-url-token
-func (l *lexer) consumeURL() (token, error) {
+func (l *lexer) consumeURL(b *strings.Builder) (token, error) {
 	for isWhitespace(l.peek()) {
-		l.pop()
+		b.WriteRune(l.pop())
 	}
 
 	for {
 		r := l.pop()
 		switch {
 		case r == ')':
-			return l.token(tokenURL), nil
+			b.WriteRune(r)
+			return l.tokenWithString(tokenURL, b.String()), nil
 		case r == eof:
 			return token{}, l.errorf("unexpected eof parsing URL")
 		case isWhitespace(r):
+			b.WriteRune(r)
 			for isWhitespace(l.peek()) {
-				l.pop()
+				b.WriteRune(l.pop())
 			}
 			r := l.pop()
+			b.WriteRune(r)
 			if r == ')' {
-				return l.token(tokenURL), nil
+				return l.tokenWithString(tokenURL, b.String()), nil
 			}
 			return token{}, l.errorf("unexpected character parsing URL: %c", r)
 		case r == '\'', r == '"', r == '(', isNonPrintable(r):
@@ -435,28 +473,31 @@ func (l *lexer) consumeURL() (token, error) {
 			if !isValidEscape(r, l.peek()) {
 				return token{}, l.errorf("invalid '\\' parsing URL")
 			}
-			if err := l.consumeEscape(); err != nil {
+			if err := l.consumeEscape(b); err != nil {
 				return token{}, l.errorf("invalid escape parsing URL: %v", err)
 			}
+		default:
+			b.WriteRune(r)
 		}
 	}
 }
 
 // https://www.w3.org/TR/css-syntax-3/#consume-a-number
-func (l *lexer) consumeNumber() {
+func (l *lexer) consumeNumber(b *strings.Builder) {
 	if l.peek() == '+' || l.peek() == '-' {
-		l.pop()
+		b.WriteRune(l.pop())
 	}
 
 	for isDigit(l.peek()) {
-		l.pop()
+		b.WriteRune(l.pop())
 	}
 
 	if l.peek() == '.' && isDigit(l.peekN(1)) {
-		l.popN(2)
+		b.WriteRune(l.pop())
+		b.WriteRune(l.pop())
 
 		for isDigit(l.peek()) {
-			l.pop()
+			b.WriteRune(l.pop())
 		}
 	}
 
@@ -466,15 +507,19 @@ func (l *lexer) consumeNumber() {
 
 	if r1 == 'E' || r1 == 'e' {
 		if isDigit(r2) {
-			l.popN(2)
+			b.WriteRune(l.pop())
+			b.WriteRune(l.pop())
 
 			for isDigit(l.peek()) {
-				l.pop()
+				b.WriteRune(l.pop())
 			}
 		} else if (r2 == '+' || r2 == '-') && isDigit(r3) {
-			l.popN(3)
+			b.WriteRune(l.pop())
+			b.WriteRune(l.pop())
+			b.WriteRune(l.pop())
+
 			for isDigit(l.peek()) {
-				l.pop()
+				b.WriteRune(l.pop())
 			}
 		}
 	}
