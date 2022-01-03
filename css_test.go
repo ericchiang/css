@@ -1,32 +1,75 @@
 package css
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
 
-func TestClassSelector(t *testing.T) {
+type testMethod struct {
+	name string
+	fn   func(p *parser) (interface{}, error)
+}
+
+func TestParser(t *testing.T) {
+	pClassSelector := testMethod{
+		name: "classSelector()",
+		fn: func(p *parser) (interface{}, error) {
+			return p.classSelector()
+		},
+	}
+	pPseudoClass := testMethod{
+		name: "pseudoClassSelector()",
+		fn: func(p *parser) (interface{}, error) {
+			return p.pseudoClassSelector()
+		},
+	}
+
 	tests := []struct {
-		s       string
-		want    *classSelector
-		wantErr bool
+		method     testMethod
+		s          string
+		want       interface{}
+		wantErrPos int
 	}{
-		{".foo", &classSelector{"foo"}, false},
-		{".bar()", nil, true},
-		{"foo", nil, true},
+		{pClassSelector, ".foo", &classSelector{"foo"}, -1},
+		{pClassSelector, ".bar()", nil, 1},
+		{pClassSelector, "foo", nil, 0},
+		{pPseudoClass, ":foo", &pseudoClassSelector{"foo", "", nil}, -1},
+		{pPseudoClass, ":foo()", &pseudoClassSelector{"", "foo(", nil}, -1},
+		{pPseudoClass, ":foo(a)", &pseudoClassSelector{"", "foo(", []token{
+			token{tokenIdent, "a", 5},
+		}}, -1},
+		{pPseudoClass, ":foo(a, b)", &pseudoClassSelector{"", "foo(", []token{
+			token{tokenIdent, "a", 5},
+			token{tokenComma, ",", 6},
+			token{tokenWhitespace, " ", 7},
+			token{tokenIdent, "b", 8},
+		}}, -1},
 	}
 	for _, test := range tests {
-		p := newParser(test.s)
-		got, err := p.classSelector()
-		if (err != nil) != test.wantErr {
-			t.Errorf("parsing %q got err=%v, want err=%t", test.s, err, test.wantErr)
-			continue
-		}
-		if test.wantErr {
-			continue
-		}
-		if !reflect.DeepEqual(got, test.want) {
-			t.Errorf("parsing %q got %v, want %v", test.s, got, test.want)
-		}
+		t.Run(test.method.name+test.s, func(t *testing.T) {
+			p := newParser(test.s)
+			got, err := test.method.fn(p)
+			if err != nil {
+				if test.wantErrPos < 0 {
+					t.Fatalf("parsing failed %v", err)
+				}
+				var perr *parseErr
+				if !errors.As(err, &perr) {
+					t.Fatalf("got err %v, want *parseErr", err)
+				}
+				if perr.t.pos != test.wantErrPos {
+					t.Fatalf("got error at pos %d, want %d", perr.t.pos, test.wantErrPos)
+				}
+				return
+			}
+
+			if test.wantErrPos >= 0 {
+				t.Fatalf("expected error at position %d", test.wantErrPos)
+			}
+			if !reflect.DeepEqual(got, test.want) {
+				t.Errorf("got %v, want %v", got, test.want)
+			}
+		})
 	}
 }
