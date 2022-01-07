@@ -72,6 +72,29 @@ func TestParse(t *testing.T) {
 				},
 			},
 		}},
+		{"foo bar > spam", []complexSelector{
+			{
+				sel: compoundSelector{
+					typeSelector: &typeSelector{pos: 0, value: "foo"},
+				},
+				combinator: "",
+				next: &complexSelector{
+					pos: 4,
+					sel: compoundSelector{
+						pos:          4,
+						typeSelector: &typeSelector{pos: 4, value: "bar"},
+					},
+					combinator: ">",
+					next: &complexSelector{
+						pos: 10,
+						sel: compoundSelector{
+							pos:          10,
+							typeSelector: &typeSelector{pos: 10, value: "spam"},
+						},
+					},
+				},
+			},
+		}},
 		{"foo > bar", []complexSelector{
 			{
 				sel: compoundSelector{
