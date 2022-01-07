@@ -4,6 +4,7 @@ package css
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -380,11 +381,183 @@ func (c *compiler) pseudoClassSelector(s *pseudoClassSelector) func(*html.Node) 
 		return nil
 	}
 
-	if s.function != "" {
+	switch s.function {
+	case "nth-child(":
+		return c.nthChild(s)
+	case "nth-last-child(":
+		return c.nthLastChild(s)
+	case "nth-last-of-type(":
+		return c.nthLastOfType(s)
+	case "nth-of-type(":
+		return c.nthOfType(s)
+	default:
 		c.errorf(s.pos, "unsupported pseudo-class selector: %s", s.function)
+		return nil
 	}
 
 	return nil
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:nth-child
+func (c *compiler) nthChild(s *pseudoClassSelector) func(n *html.Node) bool {
+	nth := c.compileNth(s)
+	if nth == nil {
+		return nil
+	}
+	return func(n *html.Node) bool {
+		var i uint64 = 1
+		for s := n.PrevSibling; s != nil; s = s.PrevSibling {
+			if s.Type == html.ElementNode {
+				i++
+			}
+		}
+		return nth.matches(i)
+	}
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:nth-of-type
+func (c *compiler) nthOfType(s *pseudoClassSelector) func(n *html.Node) bool {
+	nth := c.compileNth(s)
+	if nth == nil {
+		return nil
+	}
+	return func(n *html.Node) bool {
+		var i uint64 = 1
+		for s := n.PrevSibling; s != nil; s = s.PrevSibling {
+			if s.Type == html.ElementNode && s.DataAtom == n.DataAtom {
+				i++
+			}
+		}
+		return nth.matches(i)
+	}
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:nth-last-child
+func (c *compiler) nthLastChild(s *pseudoClassSelector) func(n *html.Node) bool {
+	nth := c.compileNth(s)
+	if nth == nil {
+		return nil
+	}
+	return func(n *html.Node) bool {
+		var i uint64 = 1
+		for s := n.NextSibling; s != nil; s = s.NextSibling {
+			if s.Type == html.ElementNode {
+				i++
+			}
+		}
+		return nth.matches(i)
+	}
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:nth-last-of-type
+func (c *compiler) nthLastOfType(s *pseudoClassSelector) func(n *html.Node) bool {
+	nth := c.compileNth(s)
+	if nth == nil {
+		return nil
+	}
+	return func(n *html.Node) bool {
+		var i uint64 = 1
+		for s := n.NextSibling; s != nil; s = s.NextSibling {
+			if s.Type == html.ElementNode && n.DataAtom == s.DataAtom {
+				i++
+			}
+		}
+		return nth.matches(i)
+	}
+}
+
+// nth holds a computed An+B value for :nth-child() and its associated selectors.
+type nth struct {
+	step   uint64 // A
+	offset uint64 // B
+}
+
+func (nth nth) matches(n uint64) bool {
+	if nth.step > n {
+		return nth.offset == n
+	}
+	switch nth.step {
+	case 0:
+	case 1:
+		// n % 1 is always 0, which isn't what we want.
+		return n >= nth.offset
+	default:
+		n = n % nth.step
+	}
+	return nth.offset == n
+}
+
+func (c *compiler) compileNth(s *pseudoClassSelector) *nth {
+	n := &nth{}
+	seenStep := false
+	seenPlus := false
+	seenNumber := false
+	for _, t := range s.args {
+		if t.typ == tokenWhitespace {
+			continue
+		}
+
+		// Dimentions are like "4n", indicating a step.
+		if t.typ == tokenDimension {
+			if seenStep || seenPlus {
+				c.errorf(t.pos, "expected number")
+				return nil
+			}
+			if seenNumber {
+				c.errorf(t.pos, "expected no more arguments")
+				return nil
+			}
+			if !strings.HasSuffix(t.s, "n") {
+				c.errorf(t.pos, "expected dimension of form '[0-9]+n' or number")
+				return nil
+			}
+			s := strings.TrimSuffix(t.s, "n")
+			step, err := strconv.ParseUint(s, 10, 64)
+			if err != nil {
+				c.errorf(t.pos, "expected dimension of form '[0-9]+n' or number")
+				return nil
+			}
+			seenStep = true
+			n.step = step
+			continue
+		}
+
+		if t.typ == tokenDelim {
+			if seenNumber {
+				c.errorf(t.pos, "expected no more arguments")
+				return nil
+			}
+			if !seenStep {
+				// Disallow patterns like '(+ +4)'
+				c.errorf(t.pos, "expected dimension of form '[0-9]+n' or number")
+				return nil
+			}
+			if seenPlus || t.s != "+" {
+				c.errorf(t.pos, "expected number")
+				return nil
+			}
+			seenPlus = true
+			continue
+		}
+
+		if t.typ == tokenNumber {
+			// Allow patterns like '(+4)' or '(4n + +4)'
+			s := strings.TrimPrefix(t.s, "+")
+			offset, err := strconv.ParseUint(s, 10, 64)
+			if err != nil {
+				c.errorf(t.pos, "expected non-negative integer")
+				return nil
+			}
+			n.offset = offset
+			seenNumber = true
+		}
+	}
+
+	if !seenNumber && !seenStep {
+		c.errorf(s.pos, "no arguments provided")
+		return nil
+	}
+	return n
 }
 
 // https://developer.mozilla.org/en-US/docs/Web/CSS/:empty

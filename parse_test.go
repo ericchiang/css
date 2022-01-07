@@ -246,6 +246,45 @@ func TestParse(t *testing.T) {
 				},
 			},
 		}},
+		{":nth-child(4n+3)", []complexSelector{
+			{
+				sel: compoundSelector{
+
+					subClasses: []subclassSelector{
+						{
+							pseudoClassSelector: &pseudoClassSelector{
+								function: "nth-child(",
+								args: []token{
+									{tokenDimension, "4n", "4n", 11},
+									{tokenNumber, "+3", "+3", 13},
+								},
+							},
+						},
+					},
+				},
+			},
+		}},
+		{":nth-child(4n + 3)", []complexSelector{
+			{
+				sel: compoundSelector{
+
+					subClasses: []subclassSelector{
+						{
+							pseudoClassSelector: &pseudoClassSelector{
+								function: "nth-child(",
+								args: []token{
+									{tokenDimension, "4n", "4n", 11},
+									{tokenWhitespace, " ", " ", 13},
+									{tokenDelim, "+", "+", 14},
+									{tokenWhitespace, " ", " ", 15},
+									{tokenNumber, "3", "3", 16},
+								},
+							},
+						},
+					},
+				},
+			},
+		}},
 	}
 	for _, test := range tests {
 		p := newParser(test.s)
