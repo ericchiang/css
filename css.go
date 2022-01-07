@@ -8,7 +8,7 @@
 //			<h2 id="bar">another header</h2>
 //		</p>`
 //
-//		sel, err := css.Compile("h2#foo")
+//		sel, err := css.Parse("h2#foo")
 //		if err != nil {
 //			// handle error
 //		}
