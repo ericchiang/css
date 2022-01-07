@@ -295,6 +295,61 @@ func TestSelector(t *testing.T) {
 				`<div class="spam"></div>`,
 			},
 		},
+		{
+			".test:first-of-type",
+			`
+			<p></p>
+			<div>
+				<p class="test" id="foo"></p>
+				<div class="test" id="foo"></div>
+				<div class="test" id="bar"></div>
+				<p class="test" id="bar"></p>
+				<h1 class="test" id="bar"></h1>
+			</div>
+			<p></p>
+			`,
+			[]string{
+				`<p class="test" id="foo"></p>`,
+				`<div class="test" id="foo"></div>`,
+				`<h1 class="test" id="bar"></h1>`,
+			},
+		},
+		{
+			".test:last-of-type",
+			`
+			<p></p>
+			<div>
+				<p class="test" id="foo"></p>
+				<div class="test" id="foo"></div>
+				<div class="test" id="bar"></div>
+				<p class="test" id="bar"></p>
+				<h1 class="test" id="bar"></h1>
+			</div>
+			<p></p>
+			`,
+			[]string{
+				`<div class="test" id="bar"></div>`,
+				`<p class="test" id="bar"></p>`,
+				`<h1 class="test" id="bar"></h1>`,
+			},
+		},
+		{
+			".test:only-of-type",
+			`
+			<p></p>
+			<div>
+				<p class="test" id="foo"></p>
+				<div class="test" id="foo"></div>
+				<div class="test" id="bar"></div>
+				<p class="test" id="bar"></p>
+				<h1 class="test" id="bar"></h1>
+			</div>
+			<p></p>
+			`,
+			[]string{
+				`<h1 class="test" id="bar"></h1>`,
+			},
+		},
 	}
 	for _, test := range tests {
 		s, err := Parse(test.sel)

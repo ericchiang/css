@@ -362,10 +362,16 @@ func (c *compiler) pseudoClassSelector(s *pseudoClassSelector) func(*html.Node) 
 		return emptyMatcher
 	case "first-child":
 		return firstChildMatcher
+	case "first-of-type":
+		return firstOfTypeMatcher
 	case "last-child":
 		return lastChildMatcher
+	case "last-of-type":
+		return lastOfTypeMatcher
 	case "only-child":
 		return onlyChildMatcher
+	case "only-of-type":
+		return onlyOfTypeMatcher
 	case "root":
 		return rootMatcher
 	case "":
@@ -401,6 +407,19 @@ func firstChildMatcher(n *html.Node) bool {
 	return true
 }
 
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:first-of-type
+func firstOfTypeMatcher(n *html.Node) bool {
+	for s := n.PrevSibling; s != nil; s = s.PrevSibling {
+		if s.Type != html.ElementNode {
+			continue
+		}
+		if s.DataAtom == n.DataAtom {
+			return false
+		}
+	}
+	return true
+}
+
 // https://developer.mozilla.org/en-US/docs/Web/CSS/:last-child
 func lastChildMatcher(n *html.Node) bool {
 	for s := n.NextSibling; s != nil; s = s.NextSibling {
@@ -411,9 +430,27 @@ func lastChildMatcher(n *html.Node) bool {
 	return true
 }
 
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:last-of-type
+func lastOfTypeMatcher(n *html.Node) bool {
+	for s := n.NextSibling; s != nil; s = s.NextSibling {
+		if s.Type != html.ElementNode {
+			continue
+		}
+		if s.DataAtom == n.DataAtom {
+			return false
+		}
+	}
+	return true
+}
+
 // https://developer.mozilla.org/en-US/docs/Web/CSS/:only-child
 func onlyChildMatcher(n *html.Node) bool {
 	return firstChildMatcher(n) && lastChildMatcher(n)
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:only-of-type
+func onlyOfTypeMatcher(n *html.Node) bool {
+	return firstOfTypeMatcher(n) && lastOfTypeMatcher(n)
 }
 
 // https://developer.mozilla.org/en-US/docs/Web/CSS/:root
