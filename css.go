@@ -360,6 +360,12 @@ func (c *compiler) pseudoClassSelector(s *pseudoClassSelector) func(*html.Node) 
 	switch s.ident {
 	case "empty":
 		return emptyMatcher
+	case "first-child":
+		return firstChildMatcher
+	case "last-child":
+		return lastChildMatcher
+	case "only-child":
+		return onlyChildMatcher
 	case "root":
 		return rootMatcher
 	case "":
@@ -383,6 +389,31 @@ func emptyMatcher(n *html.Node) bool {
 		}
 	}
 	return true
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:first-child
+func firstChildMatcher(n *html.Node) bool {
+	for s := n.PrevSibling; s != nil; s = s.PrevSibling {
+		if s.Type == html.ElementNode {
+			return false
+		}
+	}
+	return true
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:last-child
+func lastChildMatcher(n *html.Node) bool {
+	for s := n.NextSibling; s != nil; s = s.NextSibling {
+		if s.Type == html.ElementNode {
+			return false
+		}
+	}
+	return true
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:only-child
+func onlyChildMatcher(n *html.Node) bool {
+	return firstChildMatcher(n) && lastChildMatcher(n)
 }
 
 // https://developer.mozilla.org/en-US/docs/Web/CSS/:root

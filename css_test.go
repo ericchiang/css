@@ -251,6 +251,50 @@ func TestSelector(t *testing.T) {
 			`<html><head></head><body></body></html>`,
 			[]string{`<html><head></head><body></body></html>`},
 		},
+		{
+			"div:first-child",
+			`
+			<p></p>
+			<div>
+				<div class="foo"><p></p></div>
+				<div class="bar"><div class="spam"></div></div>
+			</div>
+			<p></p>
+			`,
+			[]string{
+				`<div class="foo"><p></p></div>`,
+				`<div class="spam"></div>`,
+			},
+		},
+		{
+			"div:last-child",
+			`
+			<p></p>
+			<div>
+				<div class="foo"><p></p></div>
+				<div class="bar"><div class="spam"></div></div>
+			</div>
+			<p></p>
+			`,
+			[]string{
+				`<div class="bar"><div class="spam"></div></div>`,
+				`<div class="spam"></div>`,
+			},
+		},
+		{
+			"div:only-child",
+			`
+			<p></p>
+			<div>
+				<div class="foo"><p></p></div>
+				<div class="bar"><div class="spam"></div></div>
+			</div>
+			<p></p>
+			`,
+			[]string{
+				`<div class="spam"></div>`,
+			},
+		},
 	}
 	for _, test := range tests {
 		s, err := Parse(test.sel)
