@@ -238,6 +238,14 @@ func TestSelector(t *testing.T) {
 			`,
 			[]string{"<em></em>"},
 		},
+		{
+			"div:empty",
+			`
+				<div class="foo"><p></p></div>
+				<div class="bar">  </div>
+			`,
+			[]string{`<div class="bar">  </div>`},
+		},
 	}
 	for _, test := range tests {
 		s, err := Parse(test.sel)

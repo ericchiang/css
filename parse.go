@@ -381,6 +381,7 @@ func (p *parser) subclassSelector() (*subclassSelector, bool, error) {
 }
 
 type pseudoClassSelector struct {
+	pos      int
 	ident    string
 	function string
 	args     []token
@@ -392,6 +393,7 @@ func (p *parser) pseudoClassSelector() (*pseudoClassSelector, error) {
 	if err != nil {
 		return nil, err
 	}
+	pos := t.pos
 	if t.typ != tokenColon {
 		return nil, p.errorf(t, "expected ':'")
 	}
@@ -401,7 +403,7 @@ func (p *parser) pseudoClassSelector() (*pseudoClassSelector, error) {
 		return nil, err
 	}
 	if t.typ == tokenIdent {
-		return &pseudoClassSelector{ident: t.s}, nil
+		return &pseudoClassSelector{pos: pos, ident: t.s}, nil
 	}
 	if t.typ != tokenFunction {
 		return nil, p.errorf(t, "expected identifier or function")
@@ -419,7 +421,7 @@ func (p *parser) pseudoClassSelector() (*pseudoClassSelector, error) {
 	if c.typ != tokenParenClose {
 		return nil, p.errorf(t, "expected ')'")
 	}
-	return &pseudoClassSelector{function: t.s, args: args}, nil
+	return &pseudoClassSelector{pos: pos, function: t.s, args: args}, nil
 }
 
 // https://drafts.csswg.org/css-syntax-3/#typedef-any-value

@@ -290,7 +290,11 @@ func (c *compiler) compoundSelector(s *compoundSelector) *compoundSelectorMatche
 		}
 	}
 	if len(s.pseudoSelectors) != 0 {
-		if c.errorf(s.pos, "pseudo selector not supported") {
+		// It's not clear that it makes sense for us to support pseudo elements,
+		// since this is more about modifying added elements than selecting elements.
+		//
+		// https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-elements
+		if c.errorf(s.pos, "pseudo element selectors not supported") {
 			return nil
 		}
 	}
@@ -301,6 +305,7 @@ type subclassSelectorMatcher struct {
 	idSelector        string
 	classSelector     string
 	attributeSelector *attributeSelectorMatcher
+	pseudoSelector    func(*html.Node) bool
 }
 
 func (s *subclassSelectorMatcher) match(n *html.Node) bool {
@@ -325,6 +330,10 @@ func (s *subclassSelectorMatcher) match(n *html.Node) bool {
 	if s.attributeSelector != nil {
 		return s.attributeSelector.match(n)
 	}
+
+	if s.pseudoSelector != nil {
+		return s.pseudoSelector(n)
+	}
 	return false
 }
 
@@ -337,11 +346,41 @@ func (c *compiler) subclassSelector(s *subclassSelector) *subclassSelectorMatche
 		m.attributeSelector = c.attributeSelector(s.attributeSelector)
 	}
 	if s.pseudoClassSelector != nil {
-		if c.errorf(s.pos, "pseudo class selector not supported") {
-			return nil
-		}
+		m.pseudoSelector = c.pseudoClassSelector(s.pseudoClassSelector)
 	}
 	return m
+}
+
+type pseudoClassSelectorMatcher struct {
+	matcher func(*html.Node) bool
+}
+
+func (c *compiler) pseudoClassSelector(s *pseudoClassSelector) func(*html.Node) bool {
+	// https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-classes
+	switch s.ident {
+	case "empty":
+		return emptyMatcher
+	case "":
+	default:
+		c.errorf(s.pos, "unsupported pseudo-class selector: %s", s.ident)
+		return nil
+	}
+
+	if s.function != "" {
+		c.errorf(s.pos, "unsupported pseudo-class selector: %s", s.function)
+	}
+
+	return nil
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:empty
+func emptyMatcher(n *html.Node) bool {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.ElementNode {
+			return false
+		}
+	}
+	return true
 }
 
 type attributeSelectorMatcher struct {

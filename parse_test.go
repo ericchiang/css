@@ -201,7 +201,7 @@ func TestParse(t *testing.T) {
 					typeSelector: &typeSelector{pos: 0, value: "foo"},
 					pseudoSelectors: []pseudoSelector{
 						{
-							element: pseudoClassSelector{ident: "bar"},
+							element: pseudoClassSelector{pos: 4, ident: "bar"},
 						},
 					},
 				},
@@ -213,8 +213,8 @@ func TestParse(t *testing.T) {
 					typeSelector: &typeSelector{pos: 0, value: "foo"},
 					pseudoSelectors: []pseudoSelector{
 						{
-							element: pseudoClassSelector{ident: "bar"},
-							classes: []pseudoClassSelector{{ident: "spam"}, {ident: "biz"}},
+							element: pseudoClassSelector{pos: 4, ident: "bar"},
+							classes: []pseudoClassSelector{{pos: 9, ident: "spam"}, {pos: 15, ident: "biz"}},
 						},
 					},
 				},
@@ -227,6 +227,7 @@ func TestParse(t *testing.T) {
 					pseudoSelectors: []pseudoSelector{
 						{
 							element: pseudoClassSelector{
+								pos:      4,
 								function: "myfunc(",
 								args: []token{
 									{tokenIdent, "a", "a", 12},
@@ -316,13 +317,13 @@ func TestSubParser(t *testing.T) {
 		want       interface{}
 		wantErrPos int
 	}{
-		{parsePseudoClass, ":foo", &pseudoClassSelector{"foo", "", nil}, -1},
+		{parsePseudoClass, ":foo", &pseudoClassSelector{0, "foo", "", nil}, -1},
 		{parsePseudoClass, ": foo", nil, 1}, // https://www.w3.org/TR/selectors-4/#white-space
-		{parsePseudoClass, ":foo()", &pseudoClassSelector{"", "foo(", nil}, -1},
-		{parsePseudoClass, ":foo(a)", &pseudoClassSelector{"", "foo(", []token{
+		{parsePseudoClass, ":foo()", &pseudoClassSelector{0, "", "foo(", nil}, -1},
+		{parsePseudoClass, ":foo(a)", &pseudoClassSelector{0, "", "foo(", []token{
 			token{tokenIdent, "a", "a", 5},
 		}}, -1},
-		{parsePseudoClass, ":foo(a, b)", &pseudoClassSelector{"", "foo(", []token{
+		{parsePseudoClass, ":foo(a, b)", &pseudoClassSelector{0, "", "foo(", []token{
 			token{tokenIdent, "a", "a", 5},
 			token{tokenComma, ",", ",", 6},
 			token{tokenWhitespace, " ", " ", 7},
@@ -375,7 +376,7 @@ func TestSubParser(t *testing.T) {
 			attributeSelector: &attributeSelector{0, &wqName{false, "", "foo"}, "=", "bar", false},
 		}, -1},
 		{parseSubclassSel, ":foo", &subclassSelector{
-			pseudoClassSelector: &pseudoClassSelector{"foo", "", nil},
+			pseudoClassSelector: &pseudoClassSelector{0, "foo", "", nil},
 		}, -1},
 		{parseSubclassSel, "::foo", false, -1},
 		{parseWQName, "foo", &wqName{false, "", "foo"}, -1},
