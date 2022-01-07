@@ -360,6 +360,8 @@ func (c *compiler) pseudoClassSelector(s *pseudoClassSelector) func(*html.Node) 
 	switch s.ident {
 	case "empty":
 		return emptyMatcher
+	case "root":
+		return rootMatcher
 	case "":
 	default:
 		c.errorf(s.pos, "unsupported pseudo-class selector: %s", s.ident)
@@ -381,6 +383,11 @@ func emptyMatcher(n *html.Node) bool {
 		}
 	}
 	return true
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:root
+func rootMatcher(n *html.Node) bool {
+	return n.Parent == nil
 }
 
 type attributeSelectorMatcher struct {

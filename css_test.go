@@ -246,6 +246,11 @@ func TestSelector(t *testing.T) {
 			`,
 			[]string{`<div class="bar">  </div>`},
 		},
+		{
+			":root",
+			`<html><head></head><body></body></html>`,
+			[]string{`<html><head></head><body></body></html>`},
+		},
 	}
 	for _, test := range tests {
 		s, err := Parse(test.sel)
