@@ -123,9 +123,9 @@ func (p *parser) complexSelector() (*complexSelector, error) {
 	}
 	sel.sel = *cs
 
-	p.skipWhitespace()
 	last := sel
 	for {
+		p.skipWhitespace()
 		t, err = p.peek()
 		if err != nil {
 			return nil, err
@@ -460,12 +460,14 @@ func (p *parser) any(until tokenType) ([]token, error) {
 	}
 }
 
-func (p *parser) skipWhitespace() {
+func (p *parser) skipWhitespace() bool {
+	seen := false
 	for {
 		t, err := p.peek()
 		if err != nil || t.typ != tokenWhitespace {
-			return
+			return seen
 		}
+		seen = true
 		p.next()
 	}
 }

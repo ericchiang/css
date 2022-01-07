@@ -225,6 +225,19 @@ func TestSelector(t *testing.T) {
 				`<a href="http://foo"></a>`,
 			},
 		},
+		{
+			"body p em", // https://github.com/ericchiang/css/issues/7
+			`
+				<html>
+					<body>
+						<p>
+							<em></em>
+						</p>
+					</body>
+				</html>
+			`,
+			[]string{"<em></em>"},
+		},
 	}
 	for _, test := range tests {
 		s, err := Parse(test.sel)
