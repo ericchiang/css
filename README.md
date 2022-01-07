@@ -23,7 +23,7 @@ var data = `
 </p>`
 
 func main() {
-	sel, err := css.Compile("h2#foo")
+	sel, err := css.Parse("h2#foo")
 	if err != nil {
 		panic(err)
 	}
