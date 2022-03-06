@@ -131,10 +131,53 @@ func (t tokenType) String() string {
 }
 
 type token struct {
-	typ tokenType
-	raw string
-	s   string
-	pos int
+	typ  tokenType
+	raw  string
+	s    string
+	pos  int
+	flag tokenFlag
+	dim  string // dimension value, set by <dimension-token>
+}
+
+func (t token) withDim(dim string) token {
+	t.dim = dim
+	return t
+}
+
+func (t token) withString(s string) token {
+	t.s = s
+	return t
+}
+
+func (t token) withFlag(flag tokenFlag) token {
+	t.flag = flag
+	return t
+}
+
+// tokenFlag holds "type flag" information about the token.
+type tokenFlag int
+
+const (
+	tokenFlagNone tokenFlag = iota
+	tokenFlagInteger
+	tokenFlagID
+	tokenFlagNumber
+	tokenFlagUnrestricted
+)
+
+var tokenFlagString = map[tokenFlag]string{
+	tokenFlagNone:         "(no flag set)",
+	tokenFlagInteger:      "type=integer",
+	tokenFlagID:           "type=id",
+	tokenFlagNumber:       "type=number",
+	tokenFlagUnrestricted: "type=unrestricted",
+}
+
+func (t tokenFlag) String() string {
+	if s, ok := tokenFlagString[t]; ok {
+		return s
+	}
+	return fmt.Sprintf("tokenFlag(0x%x)", int(t))
 }
 
 func (t token) String() string {
@@ -143,6 +186,10 @@ func (t token) String() string {
 
 func (t token) isDelim(s string) bool {
 	return t.typ == tokenDelim && t.s == s
+}
+
+func (t token) isIdent(s string) bool {
+	return t.typ == tokenIdent && t.s == s
 }
 
 type lexErr struct {
@@ -161,16 +208,7 @@ func (l *lexer) errorf(format string, v ...interface{}) error {
 
 func (l *lexer) token(typ tokenType) token {
 	s := l.s[l.last:l.pos]
-	t := token{typ, s, s, l.last}
-	l.last = l.pos
-	return t
-}
-
-// tokenWithString allows tokens that parse escape sequences to override the
-// string associated with the token.
-func (l *lexer) tokenWithString(typ tokenType, s string) token {
-	raw := l.s[l.last:l.pos]
-	t := token{typ, raw, s, l.last}
+	t := token{typ, s, s, l.last, 0, ""}
 	l.last = l.pos
 	return t
 }
@@ -208,7 +246,7 @@ func (l *lexer) next() (token, error) {
 			if err := l.consumeName(&b); err != nil {
 				return token{}, err
 			}
-			return l.tokenWithString(tokenHash, b.String()), nil
+			return l.token(tokenHash).withString(b.String()).withFlag(tokenFlagID), nil
 		}
 		return l.token(tokenDelim), nil
 	case '(':
@@ -231,6 +269,10 @@ func (l *lexer) next() (token, error) {
 		if l.peek() == '-' && l.peekN(1) == '>' {
 			l.popN(2)
 			return l.token(tokenCDC), nil
+		}
+		if isIdentStart(r, l.peek(), l.peekN(1)) {
+			l.push(r)
+			return l.identLikeToken()
 		}
 		return l.token(tokenDelim), nil
 	case '.':
@@ -256,7 +298,7 @@ func (l *lexer) next() (token, error) {
 			if err := l.consumeName(&b); err != nil {
 				return token{}, err
 			}
-			return l.tokenWithString(tokenAtKeyword, b.String()), nil
+			return l.token(tokenAtKeyword).withString(b.String()), nil
 		}
 		return l.token(tokenDelim), nil
 	case '[':
@@ -283,7 +325,7 @@ func (l *lexer) string(quote rune) (token, error) {
 	for {
 		switch r := l.pop(); r {
 		case quote:
-			return l.tokenWithString(tokenString, b.String()), nil
+			return l.token(tokenString).withString(b.String()), nil
 		case eof:
 			return token{}, l.errorf("unexpected eof parsing string")
 		case '\n':
@@ -367,20 +409,24 @@ func (l *lexer) consumeName(b *strings.Builder) error {
 // https://www.w3.org/TR/css-syntax-3/#consume-a-numeric-token
 func (l *lexer) numericToken() (token, error) {
 	var b strings.Builder
-	l.consumeNumber(&b)
+	f := l.consumeNumber(&b)
 
 	if isIdentStart(l.peek(), l.peekN(1), l.peekN(2)) {
-		if err := l.consumeName(&b); err != nil {
+		var dim strings.Builder
+		if err := l.consumeName(&dim); err != nil {
 			return token{}, err
 		}
-		return l.token(tokenDimension), nil
+		return l.token(tokenDimension).
+			withString(b.String()).
+			withFlag(f).
+			withDim(dim.String()), nil
 	}
 
 	if l.peek() == '%' {
 		b.WriteRune(l.pop())
-		return l.tokenWithString(tokenPercent, b.String()), nil
+		return l.token(tokenPercent).withString(b.String()).withFlag(tokenFlagNumber), nil
 	}
-	return l.tokenWithString(tokenNumber, b.String()), nil
+	return l.token(tokenNumber).withString(b.String()).withFlag(f), nil
 }
 
 // https://www.w3.org/TR/css-syntax-3/#consume-an-ident-like-token
@@ -396,10 +442,10 @@ func (l *lexer) identLikeToken() (token, error) {
 
 	if l.peek() == '(' {
 		b.WriteRune(l.pop())
-		return l.tokenWithString(tokenFunction, b.String()), nil
+		return l.token(tokenFunction).withString(b.String()), nil
 	}
 
-	return l.tokenWithString(tokenIdent, b.String()), nil
+	return l.token(tokenIdent).withString(b.String()), nil
 }
 
 func (l *lexer) startsURL(b *strings.Builder) bool {
@@ -453,7 +499,7 @@ func (l *lexer) consumeURL(b *strings.Builder) (token, error) {
 		switch {
 		case r == ')':
 			b.WriteRune(r)
-			return l.tokenWithString(tokenURL, b.String()), nil
+			return l.token(tokenURL).withString(b.String()), nil
 		case r == eof:
 			return token{}, l.errorf("unexpected eof parsing URL")
 		case isWhitespace(r):
@@ -464,7 +510,7 @@ func (l *lexer) consumeURL(b *strings.Builder) (token, error) {
 			r := l.pop()
 			b.WriteRune(r)
 			if r == ')' {
-				return l.tokenWithString(tokenURL, b.String()), nil
+				return l.token(tokenURL).withString(b.String()), nil
 			}
 			return token{}, l.errorf("unexpected character parsing URL: %c", r)
 		case r == '\'', r == '"', r == '(', isNonPrintable(r):
@@ -483,19 +529,33 @@ func (l *lexer) consumeURL(b *strings.Builder) (token, error) {
 }
 
 // https://www.w3.org/TR/css-syntax-3/#consume-a-number
-func (l *lexer) consumeNumber(b *strings.Builder) {
+func (l *lexer) consumeNumber(b *strings.Builder) tokenFlag {
+	// 1. Initially set type to "integer". Let repr be the empty string.
+	f := tokenFlagInteger
+
+	// 2. If the next input code point is U+002B PLUS SIGN (+) or U+002D
+	// HYPHEN-MINUS (-), consume it and append it to repr.
 	if l.peek() == '+' || l.peek() == '-' {
 		b.WriteRune(l.pop())
 	}
 
+	// 3. While the next input code point is a digit, consume it and append
+	// it to repr.
 	for isDigit(l.peek()) {
 		b.WriteRune(l.pop())
 	}
 
+	// 4. If the next 2 input code points are U+002E FULL STOP (.) followed
+	// by a digit, then:
 	if l.peek() == '.' && isDigit(l.peekN(1)) {
+		// Consume them.
+		// Append them to repr.
 		b.WriteRune(l.pop())
 		b.WriteRune(l.pop())
+		f = tokenFlagNumber
 
+		// While the next input code point is a digit, consume it and append
+		// it to repr.
 		for isDigit(l.peek()) {
 			b.WriteRune(l.pop())
 		}
@@ -505,7 +565,12 @@ func (l *lexer) consumeNumber(b *strings.Builder) {
 	r2 := l.peekN(1)
 	r3 := l.peekN(2)
 
+	// 5. If the next 2 or 3 input code points are U+0045 LATIN CAPITAL LETTER
+	// E (E) or U+0065 LATIN SMALL LETTER E (e), optionally followed by U+002D
+	// HYPHEN-MINUS (-) or U+002B PLUS SIGN (+), followed by a digit, then:
 	if r1 == 'E' || r1 == 'e' {
+		// Set type to "number".
+		f = tokenFlagNumber
 		if isDigit(r2) {
 			b.WriteRune(l.pop())
 			b.WriteRune(l.pop())
@@ -523,6 +588,7 @@ func (l *lexer) consumeNumber(b *strings.Builder) {
 			}
 		}
 	}
+	return f
 }
 
 // https://www.w3.org/TR/css-syntax-3/#whitespace

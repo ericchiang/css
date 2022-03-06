@@ -75,19 +75,19 @@ func TestLexer(t *testing.T) {
 		{
 			`#foo`,
 			[]token{
-				tok(tokenHash, "#foo"),
+				tok(tokenHash, "#foo").withFlag(tokenFlagID),
 			},
 		},
 		{
 			`#\0100`,
 			[]token{
-				tok(tokenHash, `#\0100`, "#Ā"),
+				tok(tokenHash, `#\0100`, "#Ā").withFlag(tokenFlagID),
 			},
 		},
 		{
 			`#foo()`,
 			[]token{
-				tok(tokenHash, "#foo"),
+				tok(tokenHash, "#foo").withFlag(tokenFlagID),
 				tok(tokenParenOpen, "("),
 				tok(tokenParenClose, ")"),
 			},
@@ -101,17 +101,17 @@ func TestLexer(t *testing.T) {
 		{
 			`+1`,
 			[]token{
-				tok(tokenNumber, "+1"),
+				tok(tokenNumber, "+1").withFlag(tokenFlagInteger),
 			},
 		},
 		{
 			`+1.1 +1.11e11 +1.11e+11 +`,
 			[]token{
-				tok(tokenNumber, "+1.1"),
+				tok(tokenNumber, "+1.1").withFlag(tokenFlagNumber),
 				tok(tokenWhitespace, " "),
-				tok(tokenNumber, "+1.11e11"),
+				tok(tokenNumber, "+1.11e11").withFlag(tokenFlagNumber),
 				tok(tokenWhitespace, " "),
-				tok(tokenNumber, "+1.11e+11"),
+				tok(tokenNumber, "+1.11e+11").withFlag(tokenFlagNumber),
 				tok(tokenWhitespace, " "),
 				tok(tokenDelim, "+"),
 			},
@@ -119,13 +119,13 @@ func TestLexer(t *testing.T) {
 		{
 			`+1cm`,
 			[]token{
-				tok(tokenDimension, "+1cm"),
+				tok(tokenDimension, "+1cm").withString("+1").withDim("cm").withFlag(tokenFlagInteger),
 			},
 		},
 		{
 			`+50%`,
 			[]token{
-				tok(tokenPercent, "+50%"),
+				tok(tokenPercent, "+50%").withFlag(tokenFlagNumber),
 			},
 		},
 		{
@@ -137,13 +137,13 @@ func TestLexer(t *testing.T) {
 		{
 			`-1.1 -1.11e11 --> -1.11e-11 -`,
 			[]token{
-				tok(tokenNumber, "-1.1"),
+				tok(tokenNumber, "-1.1").withFlag(tokenFlagNumber),
 				tok(tokenWhitespace, " "),
-				tok(tokenNumber, "-1.11e11"),
+				tok(tokenNumber, "-1.11e11").withFlag(tokenFlagNumber),
 				tok(tokenWhitespace, " "),
 				tok(tokenCDC, "-->"),
 				tok(tokenWhitespace, " "),
-				tok(tokenNumber, "-1.11e-11"),
+				tok(tokenNumber, "-1.11e-11").withFlag(tokenFlagNumber),
 				tok(tokenWhitespace, " "),
 				tok(tokenDelim, "-"),
 			},
@@ -151,11 +151,11 @@ func TestLexer(t *testing.T) {
 		{
 			`.1 .11e11 .11e-11 .`,
 			[]token{
-				tok(tokenNumber, ".1"),
+				tok(tokenNumber, ".1").withFlag(tokenFlagNumber),
 				tok(tokenWhitespace, " "),
-				tok(tokenNumber, ".11e11"),
+				tok(tokenNumber, ".11e11").withFlag(tokenFlagNumber),
 				tok(tokenWhitespace, " "),
-				tok(tokenNumber, ".11e-11"),
+				tok(tokenNumber, ".11e-11").withFlag(tokenFlagNumber),
 				tok(tokenWhitespace, " "),
 				tok(tokenDelim, "."),
 			},
@@ -197,7 +197,7 @@ func TestLexer(t *testing.T) {
 		{
 			`4.123e-2`,
 			[]token{
-				tok(tokenNumber, "4.123e-2"),
+				tok(tokenNumber, "4.123e-2").withFlag(tokenFlagNumber),
 			},
 		},
 		{
@@ -233,6 +233,45 @@ func TestLexer(t *testing.T) {
 			[]token{
 				tok(tokenDelim, "."),
 				tok(tokenIdent, "foo"),
+			},
+		},
+		{
+			`4n`,
+			[]token{
+				tok(tokenDimension, "4n").withString("4").withDim("n").withFlag(tokenFlagInteger),
+			},
+		},
+		{
+			`+n`,
+			[]token{
+				tok(tokenDelim, "+"),
+				tok(tokenIdent, "n"),
+			},
+		},
+		{
+			`n`,
+			[]token{
+				tok(tokenIdent, "n"),
+			},
+		},
+		{
+			`-n`,
+			[]token{
+				tok(tokenIdent, "-n"),
+			},
+		},
+		{
+			`-n-3`,
+			[]token{
+				tok(tokenIdent, "-n-3"),
+			},
+		},
+		{
+			`-n- 3`,
+			[]token{
+				tok(tokenIdent, "-n-"),
+				tok(tokenWhitespace, " "),
+				tok(tokenNumber, "3").withFlag(tokenFlagInteger),
 			},
 		},
 	}
