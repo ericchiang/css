@@ -230,15 +230,15 @@ func TestParse(t *testing.T) {
 								pos:      4,
 								function: "myfunc(",
 								args: []token{
-									{tokenIdent, "a", "a", 12},
-									{tokenComma, ",", ",", 13},
-									{tokenWhitespace, " ", " ", 14},
-									{tokenIdent, "b", "b", 15},
-									{tokenComma, ",", ",", 16},
-									{tokenWhitespace, " ", " ", 17},
-									{tokenParenOpen, "(", "(", 18},
-									{tokenIdent, "c", "c", 19},
-									{tokenParenClose, ")", ")", 20},
+									{tokenIdent, "a", "a", 12, 0, ""},
+									{tokenComma, ",", ",", 13, 0, ""},
+									{tokenWhitespace, " ", " ", 14, 0, ""},
+									{tokenIdent, "b", "b", 15, 0, ""},
+									{tokenComma, ",", ",", 16, 0, ""},
+									{tokenWhitespace, " ", " ", 17, 0, ""},
+									{tokenParenOpen, "(", "(", 18, 0, ""},
+									{tokenIdent, "c", "c", 19, 0, ""},
+									{tokenParenClose, ")", ")", 20, 0, ""},
 								},
 							},
 						},
@@ -255,8 +255,8 @@ func TestParse(t *testing.T) {
 							pseudoClassSelector: &pseudoClassSelector{
 								function: "nth-child(",
 								args: []token{
-									{tokenDimension, "4n", "4n", 11},
-									{tokenNumber, "+3", "+3", 13},
+									{tokenDimension, "4n", "4", 11, tokenFlagInteger, "n"},
+									{tokenNumber, "+3", "+3", 13, tokenFlagInteger, ""},
 								},
 							},
 						},
@@ -273,11 +273,11 @@ func TestParse(t *testing.T) {
 							pseudoClassSelector: &pseudoClassSelector{
 								function: "nth-child(",
 								args: []token{
-									{tokenDimension, "4n", "4n", 11},
-									{tokenWhitespace, " ", " ", 13},
-									{tokenDelim, "+", "+", 14},
-									{tokenWhitespace, " ", " ", 15},
-									{tokenNumber, "3", "3", 16},
+									{tokenDimension, "4n", "4", 11, tokenFlagInteger, "n"},
+									{tokenWhitespace, " ", " ", 13, 0, ""},
+									{tokenDelim, "+", "+", 14, 0, ""},
+									{tokenWhitespace, " ", " ", 15, 0, ""},
+									{tokenNumber, "3", "3", 16, tokenFlagInteger, ""},
 								},
 							},
 						},
@@ -360,13 +360,13 @@ func TestSubParser(t *testing.T) {
 		{parsePseudoClass, ": foo", nil, 1}, // https://www.w3.org/TR/selectors-4/#white-space
 		{parsePseudoClass, ":foo()", &pseudoClassSelector{0, "", "foo(", nil}, -1},
 		{parsePseudoClass, ":foo(a)", &pseudoClassSelector{0, "", "foo(", []token{
-			token{tokenIdent, "a", "a", 5},
+			token{tokenIdent, "a", "a", 5, 0, ""},
 		}}, -1},
 		{parsePseudoClass, ":foo(a, b)", &pseudoClassSelector{0, "", "foo(", []token{
-			token{tokenIdent, "a", "a", 5},
-			token{tokenComma, ",", ",", 6},
-			token{tokenWhitespace, " ", " ", 7},
-			token{tokenIdent, "b", "b", 8},
+			token{tokenIdent, "a", "a", 5, 0, ""},
+			token{tokenComma, ",", ",", 6, 0, ""},
+			token{tokenWhitespace, " ", " ", 7, 0, ""},
+			token{tokenIdent, "b", "b", 8, 0, ""},
 		}}, -1},
 		{parseWQName, "foo", &wqName{false, "", "foo"}, -1},
 		{parseWQName, "foo|bar", &wqName{true, "foo", "bar"}, -1},
@@ -453,5 +453,69 @@ func TestSubParser(t *testing.T) {
 				t.Errorf("got %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestANPlusB(t *testing.T) {
+	tests := []struct {
+		s       string
+		a       int64
+		b       int64
+		wantErr bool
+	}{
+		{"even", 2, 0, false},
+		{"odd", 2, 1, false},
+		{"even odd", 0, 0, true},
+		{"4n", 4, 0, false},
+		{"+4n", 4, 0, false},
+		{"-4n", -4, 0, false},
+		{"+ 4n", 0, 0, true},
+		{"4n +3", 4, 3, false},
+		{"4n -3", 4, -3, false},
+		{"4n + 3", 4, 3, false},
+		{"4n - 3", 4, -3, false},
+		{"4n+3", 4, 3, false},
+		{"4n-3", 4, -3, false},
+		{"-n-3", -1, -3, false},
+		{"-n -3", -1, -3, false},
+		{"-n - 3", -1, -3, false},
+		{"-n + 3", -1, 3, false},
+		{"-n", -1, 0, false},
+		{"4n- 3", 4, -3, false},
+		{"-n- 3", -1, -3, false},
+		{"+n", 1, 0, false},
+		{"+n- 3", 1, -3, false},
+		{"+n- -3", 0, 0, true},
+	}
+
+	for _, test := range tests {
+		p := newParser(test.s)
+		got, err := p.aNPlusB()
+		if err != nil {
+			if test.wantErr {
+				continue
+			}
+			t.Errorf("Failed to parse string %s: %v", test.s, err)
+			continue
+		}
+		tok, err := p.peek()
+		if err != nil {
+			t.Errorf("Failed to peek next token for string %s: %v", test.s, err)
+			continue
+		}
+		if err := p.expectWhitespaceOrEOF(); err != nil {
+			if test.wantErr {
+				continue
+			}
+			t.Errorf("Parsing string, expected eof or whitespace at token %s for string %s", tok, test.s)
+			continue
+		}
+		if test.wantErr {
+			t.Errorf("Expected error parsing %s: %v", test.s, err)
+			continue
+		}
+		if test.a != got.a || test.b != got.b {
+			t.Errorf("Parsing failed for %s, got a=%d, b=%d, want a=%d, b=%d", test.s, got.a, got.b, test.a, test.b)
+		}
 	}
 }

@@ -2,6 +2,7 @@ package css
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -15,13 +16,40 @@ func (p *parseErr) Error() string {
 }
 
 type parser struct {
-	l *lexer
+	l interface {
+		next() (token, error)
+	}
 	// peekQueue holds tokens that have been peeked but not consumed. These are
 	// consumed before the lexer is consulted.
 	peekQueue *queue
 	// err is set whenever a lex error occurs. When set, all subsequent calls to
 	// next(), peek(), and peekN() will fail.
 	err error
+}
+
+type tokens struct {
+	i int
+	t []token
+}
+
+func (t *tokens) next() (token, error) {
+	if t.i < len(t.t) {
+		tok := t.t[t.i]
+		t.i++
+		return tok, nil
+	}
+	lastPos := 0
+	if len(t.t) > 0 {
+		lastTok := t.t[len(t.t)-1]
+		lastPos = lastTok.pos + len(lastTok.raw)
+	}
+	return token{tokenEOF, "", "", lastPos, 0, ""}, nil
+}
+
+// newParserFromTokens allows creating a parser from a token stream. This is
+// used for subparsers, such as pseudo-elements.
+func newParserFromTokens(t []token) *parser {
+	return &parser{l: &tokens{t: t}, peekQueue: newQueue(2)}
 }
 
 func newParser(s string) *parser {
@@ -474,6 +502,18 @@ func (p *parser) skipWhitespace() bool {
 	}
 }
 
+func (p *parser) expectWhitespaceOrEOF() error {
+	p.skipWhitespace()
+	t, err := p.next()
+	if err != nil {
+		return err
+	}
+	if t.typ != tokenEOF {
+		return p.errorf(t, "expected no more tokens")
+	}
+	return nil
+}
+
 // <attribute-selector> = '[' <wq-name> ']' |
 //                        '[' <wq-name> <attr-matcher> [ <string-token> | <ident-token> ] <attr-modifier>? ']'
 // <attr-matcher> = [ '~' | '|' | '^' | '$' | '*' ]? '='
@@ -652,4 +692,245 @@ func (p *parser) parseName(allowStar bool) (*wqName, error) {
 	p.next()
 	p.next()
 	return &wqName{true, t.s, ident.s}, nil
+}
+
+// https://drafts.csswg.org/css-syntax-3/#typedef-n-dimension
+func isNDimension(t token) bool {
+	return t.typ == tokenDimension && t.flag == tokenFlagInteger && t.dim == "n"
+}
+
+// https://drafts.csswg.org/css-syntax-3/#typedef-ndash-dimension
+func isNDashDimension(t token) bool {
+	return t.typ == tokenDimension && t.dim == "n-"
+}
+
+func isPrefixWithDigits(s, prefix string) bool {
+	if !strings.HasPrefix(s, prefix) {
+		return false
+	}
+	if len(s) == len(prefix) {
+		return false
+	}
+	for _, c := range s[len(prefix):] {
+		if !isDigit(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// isNDashDigitDimension looks for patterns like "n-13213".
+//
+// https://drafts.csswg.org/css-syntax-3/#typedef-ndashdigit-dimension
+func isNDashDigitDimension(t token) bool {
+	return t.typ == tokenDimension && isPrefixWithDigits(t.dim, "n-")
+}
+
+// https://drafts.csswg.org/css-syntax-3/#typedef-ndashdigit-ident
+func isNDashDigitIdent(t token) bool {
+	return t.typ == tokenIdent && isPrefixWithDigits(t.s, "n-")
+}
+
+// https://drafts.csswg.org/css-syntax-3/#typedef-dashndashdigit-ident
+func isDashNDashDigitIdent(t token) bool {
+	return t.typ == tokenIdent && isPrefixWithDigits(t.s, "-n-")
+}
+
+// https://drafts.csswg.org/css-syntax-3/#typedef-integer
+func isInteger(t token) bool {
+	return t.typ == tokenNumber && t.flag == tokenFlagInteger
+}
+
+// https://drafts.csswg.org/css-syntax-3/#typedef-signed-integer
+func isSignedInteger(t token) bool {
+	return isInteger(t) && (strings.HasPrefix(t.s, "+") || strings.HasPrefix(t.s, "-"))
+}
+
+// https://drafts.csswg.org/css-syntax-3/#typedef-signless-integer
+func isSignlessInteger(t token) bool {
+	return isInteger(t) && strings.IndexFunc(t.s, isDigit) == 0
+}
+
+func parseInt(s string) (int64, error) {
+	return strconv.ParseInt(s, 10, 64)
+}
+
+// b parses the common pattern of <signed-integer> | ['+' | '-'] <signless-integer>
+func (p *parser) b() (int64, error) {
+	p.skipWhitespace()
+	t, err := p.next()
+	if err != nil {
+		return 0, err
+	}
+	if t.typ == tokenEOF {
+		return 0, nil
+	}
+
+	if isSignedInteger(t) {
+		n, err := parseInt(t.s)
+		if err != nil {
+			return 0, p.errorf(t, "parsing value as integer: %v", err)
+		}
+		return n, nil
+	}
+	if !(t.isDelim("+") || t.isDelim("-")) {
+		return 0, p.errorf(t, "expected one of the following: <signed-intger>, '+', '-'")
+	}
+	isNeg := t.isDelim("-")
+
+	p.skipWhitespace()
+	t, err = p.next()
+	if err != nil {
+		return 0, err
+	}
+
+	if !isSignlessInteger(t) {
+		return 0, p.errorf(t, "expected <signless-integer>")
+	}
+	n, err := parseInt(t.s)
+	if err != nil {
+		return 0, p.errorf(t, "parsing value as integer: %v", err)
+	}
+	if isNeg {
+		return 0 - n, nil
+	}
+	return n, nil
+}
+
+// https://drafts.csswg.org/css-syntax-3/#the-anb-type
+func (p *parser) aNPlusB() (*nth, error) {
+	p.skipWhitespace()
+	t, err := p.next()
+	if err != nil {
+		return nil, err
+	}
+	if t.isIdent("even") {
+		return &nth{a: 2}, nil
+	}
+	if t.isIdent("odd") {
+		return &nth{a: 2, b: 1}, nil
+	}
+	if isInteger(t) {
+		b, err := parseInt(t.s)
+		if err != nil {
+			return nil, p.errorf(t, "parsing value as integer: %v", err)
+		}
+		return &nth{b: b}, nil
+	}
+
+	if isNDimension(t) {
+		a, err := parseInt(t.s)
+		if err != nil {
+			return nil, p.errorf(t, "parsing value as integer: %v", err)
+		}
+		b, err := p.b()
+		if err != nil {
+			return nil, err
+		}
+		return &nth{a: a, b: b}, nil
+	}
+
+	if isNDashDigitDimension(t) {
+		// Token is of form "4n-3" where "4" is the string and "n-3" is the
+		// dimension.
+		a, err := parseInt(t.s)
+		if err != nil {
+			return nil, p.errorf(t, "parsing value as integer: %v", err)
+		}
+		b, err := parseInt(strings.TrimPrefix(t.dim, "n"))
+		if err != nil {
+			return nil, p.errorf(t, "parsing dimension as integer: %v", err)
+		}
+		return &nth{a: a, b: b}, nil
+	}
+
+	if isDashNDashDigitIdent(t) {
+		// Token is of form "-n-3".
+		b, err := parseInt(strings.TrimPrefix(t.s, "-n"))
+		if err != nil {
+			return nil, p.errorf(t, "parsing b as integer: %v", err)
+		}
+		return &nth{a: -1, b: b}, nil
+	}
+
+	if isNDashDimension(t) {
+		// String is of form "4n- 3".
+		a, err := parseInt(t.s)
+		if err != nil {
+			return nil, p.errorf(t, "parsing value as integer: %v", err)
+		}
+		p.skipWhitespace()
+		t, err := p.next()
+		if err != nil {
+			return nil, err
+		}
+		if !isSignlessInteger(t) {
+			return nil, p.errorf(t, "expected unsigned integer")
+		}
+		n, err := parseInt(t.s)
+		if err != nil {
+			return nil, p.errorf(t, "parsing value as integer: %v", err)
+		}
+		return &nth{a: a, b: 0 - n}, nil
+	}
+
+	if t.isIdent("-n-") {
+		// String is of form "-n- 3".
+		p.skipWhitespace()
+		t, err := p.next()
+		if err != nil {
+			return nil, err
+		}
+		if !isSignlessInteger(t) {
+			return nil, p.errorf(t, "expected unsigned integer")
+		}
+		n, err := parseInt(t.s)
+		if err != nil {
+			return nil, p.errorf(t, "parsing value as integer: %v", err)
+		}
+		return &nth{a: -1, b: 0 - n}, nil
+	}
+
+	if t.isIdent("-n") {
+		b, err := p.b()
+		if err != nil {
+			return nil, err
+		}
+		return &nth{a: -1, b: b}, nil
+	}
+
+	if t.isDelim("+") {
+		p.skipWhitespace()
+		tok, err := p.next()
+		if err != nil {
+			return nil, err
+		}
+		t = tok
+	}
+
+	if t.isIdent("n") {
+		b, err := p.b()
+		if err != nil {
+			return nil, err
+		}
+		return &nth{a: 1, b: b}, nil
+	}
+
+	if t.isIdent("n-") {
+		p.skipWhitespace()
+		tok, err := p.next()
+		if err != nil {
+			return nil, err
+		}
+		t = tok
+		if !isSignlessInteger(t) {
+			return nil, p.errorf(t, "expected unsigned integer")
+		}
+		n, err := parseInt(t.s)
+		if err != nil {
+			return nil, p.errorf(t, "parsing value as integer: %v", err)
+		}
+		return &nth{a: 1, b: 0 - n}, nil
+	}
+	return nil, p.errorf(t, "expected 'even', 'odd', or integer type")
 }

@@ -2,6 +2,7 @@ package css
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -451,7 +452,68 @@ func TestSelector(t *testing.T) {
 				`<li>8</li>`,
 			},
 		},
-
+		{
+			"li:nth-child(3n - 2)",
+			`
+			<ul>
+				<li>1</li>
+				<li>2</li>
+				<li>3</li>
+				<li>4</li>
+				<li>5</li>
+				<li>6</li>
+				<li>7</li>
+				<li>8</li>
+			</ul>
+			`,
+			[]string{
+				`<li>1</li>`,
+				`<li>4</li>`,
+				`<li>7</li>`,
+			},
+		},
+		{
+			"li:nth-child(even)",
+			`
+			<ul>
+				<li>1</li>
+				<li>2</li>
+				<li>3</li>
+				<li>4</li>
+				<li>5</li>
+				<li>6</li>
+				<li>7</li>
+				<li>8</li>
+			</ul>
+			`,
+			[]string{
+				`<li>2</li>`,
+				`<li>4</li>`,
+				`<li>6</li>`,
+				`<li>8</li>`,
+			},
+		},
+		{
+			"li:nth-child(odd)",
+			`
+			<ul>
+				<li>1</li>
+				<li>2</li>
+				<li>3</li>
+				<li>4</li>
+				<li>5</li>
+				<li>6</li>
+				<li>7</li>
+				<li>8</li>
+			</ul>
+			`,
+			[]string{
+				`<li>1</li>`,
+				`<li>3</li>`,
+				`<li>5</li>`,
+				`<li>7</li>`,
+			},
+		},
 		{
 			"li:nth-last-child(2)",
 			`
@@ -632,6 +694,30 @@ func TestSelector(t *testing.T) {
 		}
 		if diff := cmp.Diff(test.want, got); diff != "" {
 			t.Errorf("Selecting %q from %s returned diff (-want, +got): %s", test.sel, in, diff)
+		}
+	}
+}
+
+func TestBadSelector(t *testing.T) {
+	tests := []struct {
+		sel string
+		pos int
+	}{
+		{":nth-child(3+4n)", 0},
+	}
+	for _, test := range tests {
+		_, err := Parse(test.sel)
+		if err == nil {
+			t.Errorf("Expected parsing %s to return error", test.sel)
+			continue
+		}
+		var perr *ParseError
+		if !errors.As(err, &perr) {
+			t.Errorf("Expected parsing %s to return error of type *ParseError, got %T: %v", test.sel, err, err)
+			continue
+		}
+		if test.pos != perr.Pos {
+			t.Errorf("Parsing %s returned unexpected position, got=%d, want=%d", test.sel, perr.Pos, test.pos)
 		}
 	}
 }
