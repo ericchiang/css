@@ -383,7 +383,7 @@ func TestSubParser(t *testing.T) {
 		{parseTypeSel, "*|bar", &typeSelector{0, true, "*", "bar"}, -1},
 		{parseTypeSel, "foo|*", &typeSelector{0, true, "foo", "*"}, -1},
 		{parseTypeSel, "*|*", &typeSelector{0, true, "*", "*"}, -1},
-		{parseTypeSel, "*foo", nil, 1},
+		{parseTypeSel, "*foo", &typeSelector{0, false, "", "*"}, -1},
 		{parseTypeSel, "foo |bar", &typeSelector{0, false, "", "foo"}, -1}, // Whitespace ignored
 		{parseTypeSel, "foo| bar", &typeSelector{0, false, "", "foo"}, -1}, // Whitespace ignored
 		{parseAttrSel, "[foo]", &attributeSelector{

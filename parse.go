@@ -474,6 +474,8 @@ func (p *parser) any(until tokenType) ([]token, error) {
 			return nil, err
 		}
 		switch t.typ {
+		case tokenEOF:
+			return nil, p.errorf(t, "unexpected eof attempting to match '%s'", until)
 		case tokenBracketOpen:
 			wantClosing = append(wantClosing, tokenBracketClose)
 		case tokenCurlyOpen:
@@ -636,6 +638,9 @@ func (p *parser) wqName() (*wqName, error) {
 //
 // <wq-name>       = <ns-prefix>? <ident-token>
 // <type-selector> = <ns-prefix>? [ <ident-token> | '*' ]
+//
+// https://www.w3.org/TR/selectors-4/#typedef-wq-name
+// https://www.w3.org/TR/selectors-4/#typedef-type-selector
 func (p *parser) parseName(allowStar bool) (*wqName, error) {
 	t, err := p.next()
 	if err != nil {
@@ -652,13 +657,19 @@ func (p *parser) parseName(allowStar bool) (*wqName, error) {
 		return &wqName{true, "", t.s}, nil
 	}
 	if t.isDelim("*") {
-		delim, err := p.next()
+		delim, err := p.peek()
 		if err != nil {
 			return nil, err
 		}
 		if !delim.isDelim("|") {
+			if allowStar {
+				return &wqName{false, "", "*"}, nil
+			}
 			return nil, p.errorf(delim, "expected '|'")
 		}
+
+		// Consume the "|" delim.
+		p.next()
 
 		ident, err := p.next()
 		if err != nil {

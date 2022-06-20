@@ -176,18 +176,22 @@ func (c *compiler) errorf(pos int, msg string, v ...interface{}) bool {
 	return false
 }
 
+type combinator interface {
+	find(n *html.Node) []*html.Node
+}
+
 type selector struct {
 	m *compoundSelectorMatcher
 
-	combinators []func(n *html.Node) []*html.Node
+	combinators []combinator
 }
 
 func (s selector) find(n *html.Node) []*html.Node {
 	nodes := findAll(n, s.m.match)
-	for _, combinator := range s.combinators {
+	for _, c := range s.combinators {
 		var ns []*html.Node
 		for _, n := range nodes {
-			ns = append(ns, combinator(n)...)
+			ns = append(ns, c.find(n)...)
 		}
 		nodes = ns
 	}
@@ -290,25 +294,25 @@ func (c *compiler) compile(s *complexSelector) *selector {
 			return m
 		}
 		sel := c.compoundSelector(&curr.next.sel)
-		combinator := curr.combinator
+		comb := curr.combinator
 
 		curr = curr.next
 
-		var fn func(n *html.Node) []*html.Node
-		switch combinator {
+		var cm combinator
+		switch comb {
 		case "":
-			fn = (&descendantCombinator{sel}).find
+			cm = &descendantCombinator{sel}
 		case ">":
-			fn = (&childCombinator{sel}).find
+			cm = &childCombinator{sel}
 		case "+":
-			fn = (&adjacentCombinator{sel}).find
+			cm = &adjacentCombinator{sel}
 		case "~":
-			fn = (&siblingCombinator{sel}).find
+			cm = &siblingCombinator{sel}
 		default:
-			c.errorf(curr.pos, "unexpected combinator: %s", combinator)
+			c.errorf(curr.pos, "unexpected combinator: %s", comb)
 			continue
 		}
-		m.combinators = append(m.combinators, fn)
+		m.combinators = append(m.combinators, cm)
 	}
 	return m
 }
