@@ -28,20 +28,19 @@ func (l *lexer) peek() rune {
 		return eof
 	}
 	r, _ := utf8.DecodeRuneInString(l.s[l.pos:])
+	if r == utf8.RuneError {
+		return eof
+	}
 	return r
 }
 
 func (l *lexer) peekN(n int) rune {
-	var r rune
 	pos := l.pos
+	var r rune
 	for i := 0; i <= n; i++ {
-		if len(l.s) <= pos {
-			return eof
-		}
-		var n int
-		r, n = utf8.DecodeRuneInString(l.s[pos:])
-		pos += n
+		r = l.pop()
 	}
+	l.pos = pos
 	return r
 }
 
@@ -55,6 +54,9 @@ func (l *lexer) pop() rune {
 		return eof
 	}
 	r, n := utf8.DecodeRuneInString(l.s[l.pos:])
+	if r == utf8.RuneError {
+		return eof
+	}
 	l.pos += n
 	return r
 }

@@ -3,12 +3,94 @@ package css
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 )
+
+func (s *Selector) String() string {
+	var b strings.Builder
+	formatValue(reflect.ValueOf(s), &b, "")
+	return b.String()
+}
+
+func formatValue(v reflect.Value, b *strings.Builder, ident string) {
+	switch v.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		fmt.Fprintf(b, "%d", v.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		fmt.Fprintf(b, "%d", v.Uint())
+	case reflect.Float32, reflect.Float64:
+		fmt.Fprintf(b, "%f", v.Float())
+	case reflect.Bool:
+		fmt.Fprintf(b, "%t", v.Bool())
+	case reflect.Array, reflect.Slice:
+		if v.IsNil() {
+			b.WriteString("[]")
+			return
+		}
+		fmt.Fprintf(b, "[\n")
+		for i := 0; i < v.Len(); i++ {
+			b.WriteString(ident)
+			b.WriteString("\t")
+			formatValue(v.Index(i), b, ident+"\t")
+			fmt.Fprintf(b, ",\n")
+		}
+		b.WriteString(ident)
+		b.WriteString("]")
+	case reflect.Func:
+		if v.IsNil() {
+			b.WriteString("<nil>")
+			return
+		}
+		fmt.Fprintf(b, "<func()>")
+	case reflect.Interface:
+		if v.IsNil() {
+			b.WriteString("<nil>")
+			return
+		}
+		formatValue(v.Elem(), b, ident)
+	case reflect.Map:
+		if v.IsNil() {
+			b.WriteString("<nil>")
+			return
+		}
+		iter := v.MapRange()
+		fmt.Fprintf(b, "{\n")
+		for iter.Next() {
+			b.WriteString(ident)
+			formatValue(iter.Key(), b, ident+"\n")
+			fmt.Fprintf(b, ", ")
+			formatValue(iter.Value(), b, ident)
+		}
+		fmt.Fprintf(b, "}")
+	case reflect.Ptr:
+		if v.IsNil() {
+			b.WriteString("<nil>")
+			return
+		}
+		fmt.Fprintf(b, "*")
+		formatValue(reflect.Indirect(v), b, ident)
+	case reflect.String:
+		fmt.Fprintf(b, "%q", v.String())
+	case reflect.Struct:
+		t := v.Type()
+		fmt.Fprintf(b, "%s{\n", t.Name())
+		for i := 0; i < v.NumField(); i++ {
+			b.WriteString(ident + "\t")
+			b.WriteString(t.Field(i).Name)
+			b.WriteString(": ")
+			formatValue(v.Field(i), b, ident+"\t")
+			b.WriteString(",\n")
+		}
+		b.WriteString(ident)
+		b.WriteString("}")
+	}
+}
 
 func TestSelector(t *testing.T) {
 	tests := []struct {
@@ -20,6 +102,21 @@ func TestSelector(t *testing.T) {
 			"a",
 			`<h1><a></a></h1>`,
 			[]string{`<a></a>`},
+		},
+		{
+			"body",
+			`<h1><a></a></h1>`,
+			[]string{`<body><h1><a></a></h1></body>`},
+		},
+		{
+			"body *",
+			`<h1><a></a></h1>`,
+			[]string{`<h1><a></a></h1>`, `<a></a>`},
+		},
+		{
+			"body > *",
+			`<h1><a></a></h1>`,
+			[]string{`<h1><a></a></h1>`},
 		},
 		{
 			"div",
@@ -693,8 +790,18 @@ func TestSelector(t *testing.T) {
 			got = append(got, b.String())
 		}
 		if diff := cmp.Diff(test.want, got); diff != "" {
-			t.Errorf("Selecting %q from %s returned diff (-want, +got): %s", test.sel, in, diff)
+			t.Errorf("Selecting %q (%s) from %s returned diff (-want, +got): %s", test.sel, s, in, diff)
 		}
+	}
+}
+
+func TestParseFuzz(t *testing.T) {
+	strs := []string{
+		"\xaa",
+		":rLU((",
+	}
+	for _, s := range strs {
+		Parse(s)
 	}
 }
 
