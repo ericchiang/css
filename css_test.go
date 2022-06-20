@@ -795,16 +795,6 @@ func TestSelector(t *testing.T) {
 	}
 }
 
-func TestParseFuzz(t *testing.T) {
-	strs := []string{
-		"\xaa",
-		":rLU((",
-	}
-	for _, s := range strs {
-		Parse(s)
-	}
-}
-
 func TestBadSelector(t *testing.T) {
 	tests := []struct {
 		sel string
