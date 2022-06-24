@@ -378,8 +378,16 @@ func (s *subclassSelectorMatcher) match(n *html.Node) bool {
 
 	if s.classSelector != "" {
 		for _, a := range n.Attr {
-			if a.Key == "class" && a.Val == s.classSelector {
-				return true
+			if a.Key == "class" {
+				cls := strings.Split(a.Val, " ")
+				for _, cl := range cls {
+					if cl == "" {
+						continue
+					}
+					if cl == s.classSelector {
+						return true
+					}
+				}
 			}
 		}
 		return false
