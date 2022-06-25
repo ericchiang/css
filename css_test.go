@@ -140,6 +140,14 @@ func TestSelector(t *testing.T) {
 			},
 		},
 		{
+			".foo",
+			`<h1><h2 class="foo bar"></h2><div class="bar foo"></div><div id="foo"></div></h1>`,
+			[]string{
+				`<h2 class="foo bar"></h2>`,
+				`<div class="bar foo"></div>`,
+			},
+		},
+		{
 			"div.foo",
 			`<h1><h2 class="foo"></h2><div class="foo"></div><div id="foo"></div></h1>`,
 			[]string{`<div class="foo"></div>`},
