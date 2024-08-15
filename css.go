@@ -3,56 +3,54 @@
 // Selectors compiled by this package search through golang.org/x/net/html nodes and should
 // be used in conjunction with that package.
 //
-//		data := `<p>
-//			<h2 id="foo">a header</h2>
-//			<h2 id="bar">another header</h2>
-//		</p>`
+//	data := `<p>
+//		<h2 id="foo">a header</h2>
+//		<h2 id="bar">another header</h2>
+//	</p>`
 //
-//		sel, err := css.Parse("h2#foo")
-//		if err != nil {
-//			// handle error
-//		}
-//		node, err := html.Parse(strings.NewReader(data))
-//		if err != nil {
-//			// handle error
-//		}
-//		elements := sel.Select(node)
+//	sel, err := css.Parse("h2#foo")
+//	if err != nil {
+//		// handle error
+//	}
+//	node, err := html.Parse(strings.NewReader(data))
+//	if err != nil {
+//		// handle error
+//	}
+//	elements := sel.Select(node)
 //
 // This package aims to support Selectors Level 4 https://www.w3.org/TR/selectors-4/.
 //
-// The following selectors are supported:
+// The universal selector (*) is supported, along with:
 //
-//		*                       // Universal selector
-//		a                       // Type selector
-//		ns|a                    // Type selector with namespace
-//		.red                    // Class selector
-//		#demo                   // ID selector
-//		[attr]                  // Attribute selector
-//		[attr=value]            // Attribute selector value
-//		[attr~=value]           // Attribute selector element of list
-//		[attr|=value]           // Attribute selector value or "{value}-" prefix
-//		[attr^=value]           // Attribute selector prefix
-//		[attr$=value]           // Attribute selector suffix
-//		[attr*=value]           // Attribute selector contains value
-//		[attr=value i]          // Attribute selector case insensitive modifier
-//		foo, bar                // Selector list
-//		foo bar                 // Descendant combinator
-//		foo > bar               // Child combinator
-//		foo ~ bar               // General sibling combinator
-//		foo + bar               // Adjacent sibling combinator
-//		:empty                  // Element with no children
-//		:first-child            // First child of parent
-//		:first-of-type          // First child of its type of parent
-//		:last-child             // Last child of parent
-//		:last-of-type           // Last child of its type of parent
-//		:only-child             // Only child of parent
-//		:only-of-type           // Only child of its type parent
-//		:root                   // Root element
-//		:nth-child(An+B)        // Positional child matcher
-//		:nth-last-child(An+B)   // Reverse positional child matcher
-//		:nth-last-of-type(An+B) // Reverse positional child matcher of type
-//		:nth-of-type(An+B)      // Positional child matcher of type
-//
+//	a                       // Type selector
+//	ns|a                    // Type selector with namespace
+//	.red                    // Class selector
+//	#demo                   // ID selector
+//	[attr]                  // Attribute selector
+//	[attr=value]            // Attribute selector value
+//	[attr~=value]           // Attribute selector element of list
+//	[attr|=value]           // Attribute selector value or "{value}-" prefix
+//	[attr^=value]           // Attribute selector prefix
+//	[attr$=value]           // Attribute selector suffix
+//	[attr*=value]           // Attribute selector contains value
+//	[attr=value i]          // Attribute selector case insensitive modifier
+//	foo, bar                // Selector list
+//	foo bar                 // Descendant combinator
+//	foo > bar               // Child combinator
+//	foo ~ bar               // General sibling combinator
+//	foo + bar               // Adjacent sibling combinator
+//	:empty                  // Element with no children
+//	:first-child            // First child of parent
+//	:first-of-type          // First child of its type of parent
+//	:last-child             // Last child of parent
+//	:last-of-type           // Last child of its type of parent
+//	:only-child             // Only child of parent
+//	:only-of-type           // Only child of its type parent
+//	:root                   // Root element
+//	:nth-child(An+B)        // Positional child matcher
+//	:nth-last-child(An+B)   // Reverse positional child matcher
+//	:nth-last-of-type(An+B) // Reverse positional child matcher of type
+//	:nth-of-type(An+B)      // Positional child matcher of type
 package css
 
 import (
