@@ -1,8 +1,11 @@
-//go:build go1.18
-
 package css
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"golang.org/x/net/html"
+)
 
 func FuzzParse(f *testing.F) {
 	corpus := []string{
@@ -47,5 +50,22 @@ func FuzzParse(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, s string) {
 		Parse(s)
+	})
+}
+
+func FuzzSelector(f *testing.F) {
+	for _, test := range selectorTests {
+		f.Add(test.sel, test.in)
+	}
+	f.Fuzz(func(t *testing.T, sel, in string) {
+		s, err := Parse(sel)
+		if err != nil {
+			t.Skip()
+		}
+		root, err := html.Parse(strings.NewReader(in))
+		if err != nil {
+			t.Skip()
+		}
+		s.Select(root)
 	})
 }
