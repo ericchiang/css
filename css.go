@@ -753,7 +753,7 @@ func (c *compiler) typeSelector(s *typeSelector) *typeSelectorMatcher {
 	if s.value == "*" {
 		m.allAtoms = true
 	} else {
-		a := atom.Lookup([]byte(s.value))
+		a := atom.Lookup([]byte(strings.ToLower(s.value)))
 		if a == 0 {
 			if c.errorf(s.pos, "unrecognized node name: %s", s.value) {
 				return nil

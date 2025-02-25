@@ -1,5 +1,12 @@
 # CSS selectors in Go
 
+This library is a fork of [github.com/ericchiang/css](https://github.com/ericchiang/css) fixing issues experienced using [Gost-DOM](https://github.com/gost-dom/browser).
+
+Note. This fork starts at version 0.1.0, as I imagine adding significant chagnes
+to the public API, allowing it consume an interface; rather than the specific golang.org/x/net/html
+
+---
+
 [![Go Reference](https://pkg.go.dev/badge/github.com/ericchiang/css.svg)](https://pkg.go.dev/github.com/ericchiang/css)
 
 This package implements a CSS selector compiler for Go's HTML parsing package golang.org/x/net/html.

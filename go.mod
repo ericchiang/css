@@ -1,4 +1,4 @@
-module github.com/ericchiang/css
+module github.com/gost-dom/css
 
 go 1.15
 

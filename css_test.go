@@ -100,6 +100,11 @@ type selectorTest struct {
 
 var selectorTests = []selectorTest{
 	{
+		"A",
+		`<h1><a></a></h1>`,
+		[]string{`<a></a>`},
+	},
+	{
 		"a",
 		`<h1><a></a></h1>`,
 		[]string{`<a></a>`},
@@ -333,7 +338,7 @@ var selectorTests = []selectorTest{
 		},
 	},
 	{
-		"body p em", // https://github.com/ericchiang/css/issues/7
+		"body p em", // https://github.com/gost-dom/css/issues/7
 		`
 				<html>
 					<body>
@@ -801,7 +806,13 @@ func TestSelector(t *testing.T) {
 			got = append(got, b.String())
 		}
 		if diff := cmp.Diff(test.want, got); diff != "" {
-			t.Errorf("Selecting %q (%s) from %s returned diff (-want, +got): %s", test.sel, s, in, diff)
+			t.Errorf(
+				"Selecting %q (%s) from %s returned diff (-want, +got): %s",
+				test.sel,
+				s,
+				in,
+				diff,
+			)
 		}
 	}
 }
@@ -821,11 +832,21 @@ func TestBadSelector(t *testing.T) {
 		}
 		var perr *ParseError
 		if !errors.As(err, &perr) {
-			t.Errorf("Expected parsing %s to return error of type *ParseError, got %T: %v", test.sel, err, err)
+			t.Errorf(
+				"Expected parsing %s to return error of type *ParseError, got %T: %v",
+				test.sel,
+				err,
+				err,
+			)
 			continue
 		}
 		if test.pos != perr.Pos {
-			t.Errorf("Parsing %s returned unexpected position, got=%d, want=%d", test.sel, perr.Pos, test.pos)
+			t.Errorf(
+				"Parsing %s returned unexpected position, got=%d, want=%d",
+				test.sel,
+				perr.Pos,
+				test.pos,
+			)
 		}
 	}
 }
