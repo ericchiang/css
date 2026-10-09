@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -359,33 +360,37 @@ func (l *lexer) consumeEscape(b *strings.Builder) error {
 		return nil
 	}
 
+	// The digit already consumed is part of the value. At most five more
+	// follow it (six total). Whitespace ends the escape so a later hex
+	// digit stays in the identifier, which is how #\31 0 names id "10".
 	var hexRune strings.Builder
-	n := 0
-	for {
-		r := l.peek()
-		if isHex(r) {
-			l.pop()
-			n++
-			if n > 5 {
-				return l.errorf("too many hex digits consuming escape sequence")
-			}
-			hexRune.WriteRune(r)
-			continue
-		}
-
-		if isWhitespace(r) {
-			l.pop()
-			continue
-		}
-
-		s := hexRune.String()
-		val, err := strconv.ParseUint(s, 16, 64)
-		if err != nil {
-			return l.errorf("failed to parse hex escape sequence %s: %v", s, err)
-		}
-		b.WriteRune(rune(val))
-		return nil
+	hexRune.WriteRune(r)
+	for n := 1; n < 6 && isHex(l.peek()); n++ {
+		hexRune.WriteRune(l.pop())
 	}
+	if isHex(l.peek()) {
+		return l.errorf("too many hex digits consuming escape sequence")
+	}
+	if isWhitespace(l.peek()) {
+		l.pop()
+	}
+
+	s := hexRune.String()
+	val, err := strconv.ParseUint(s, 16, 64)
+	if err != nil {
+		return l.errorf("failed to parse hex escape sequence %s: %v", s, err)
+	}
+	b.WriteRune(escapedCodePoint(val))
+	return nil
+}
+
+// escapedCodePoint applies the CSS rule for a hex escape value.
+// Zero, a surrogate, or a value past the Unicode maximum is U+FFFD.
+func escapedCodePoint(val uint64) rune {
+	if val == 0 || val > unicode.MaxRune || (val >= 0xD800 && val <= 0xDFFF) {
+		return '\uFFFD'
+	}
+	return rune(val)
 }
 
 // https://www.w3.org/TR/css-syntax-3/#consume-a-name

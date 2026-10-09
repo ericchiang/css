@@ -60,7 +60,7 @@ func TestLexer(t *testing.T) {
 			` "\0a f" `,
 			[]token{
 				tok(tokenWhitespace, " "),
-				tok(tokenString, `"\0a f"`, "¯"),
+				tok(tokenString, `"\0a f"`, "\nf"),
 				tok(tokenWhitespace, " "),
 			},
 		},
@@ -82,6 +82,18 @@ func TestLexer(t *testing.T) {
 			`#\0100`,
 			[]token{
 				tok(tokenHash, `#\0100`, "#Ā").withFlag(tokenFlagID),
+			},
+		},
+		{
+			`#\31 0`,
+			[]token{
+				tok(tokenHash, `#\31 0`, "#10").withFlag(tokenFlagID),
+			},
+		},
+		{
+			`\26 B`,
+			[]token{
+				tok(tokenIdent, `\26 B`, "&B"),
 			},
 		},
 		{

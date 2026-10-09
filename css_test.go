@@ -806,6 +806,26 @@ func TestSelector(t *testing.T) {
 	}
 }
 
+func TestHexEscapeMatchesID(t *testing.T) {
+	s, err := Parse(`#\31 0`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := html.Parse(strings.NewReader(`<div id="10">x</div><div id="1">y</div><div id="310">z</div>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := s.Select(root)
+	if len(got) != 1 {
+		t.Fatalf("matches=%d, want the element with id 10", len(got))
+	}
+	for _, a := range got[0].Attr {
+		if a.Key == "id" && a.Val != "10" {
+			t.Fatalf("id=%q, want 10", a.Val)
+		}
+	}
+}
+
 func TestBadSelector(t *testing.T) {
 	tests := []struct {
 		sel string
